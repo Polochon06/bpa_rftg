@@ -30,31 +30,80 @@
                 </div>
 
                 <div class="card-body">
-                    <!-- Barre de recherche et filtres -->
-                    <div class="row mb-4">
+                    <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <div class="input-group">
-                                <span class="input-group-text"><i class="bi bi-search"></i></span>
-                                <input type="text" class="form-control" id="searchInput" placeholder="Rechercher un film...">
+                                <span class="input-group-text" title="Rechercher">
+                                    <i class="bi bi-search"></i>
+                                </span>
+                                <input type="text" 
+                                       class="form-control" 
+                                       id="searchInput" 
+                                       placeholder="Rechercher par titre ou description..."
+                                       aria-label="Rechercher un film">
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="d-flex gap-2">
-                                <select class="form-select" id="yearFilter">
-                                    <option value="">Année</option>
-                                    @foreach(range(date('Y'), 1900) as $year)
+                                <select class="form-select"
+                                        id="categoryFilter"
+                                        aria-label="Filtrer par catégorie">
+                                    <option value="">Toutes les catégories</option>
+                                    @if(!empty($categories))
+                                        @foreach($categories as $category)
+                                            <option value="{{ $category['categoryId'] ?? $category['category_id'] ?? $category['id'] }}">
+                                                {{ $category['name'] ?? 'Catégorie inconnue' }}
+                                            </option>
+                                        @endforeach
+                                    @endif
+                                </select>
+                                <select class="form-select"
+                                        id="yearFilter"
+                                        aria-label="Filtrer par année">
+                                    <option value="">Toutes les années</option>
+                                    @php
+                                        $years = collect($films)->pluck('releaseYear')->unique()->sort()->reverse();
+                                    @endphp
+                                    @foreach($years as $year)
                                         <option value="{{ $year }}">{{ $year }}</option>
                                     @endforeach
                                 </select>
-                                <select class="form-select" id="ratingFilter">
-                                    <option value="">Note</option>
-                                    @foreach(range(5, 1) as $rating)
-                                        <option value="{{ $rating }}">{{ $rating }}+ étoiles</option>
-                                    @endforeach
+                                <select class="form-select"
+                                        id="ratingFilter"
+                                        aria-label="Filtrer par classification">
+                                    <option value="">Toutes les classifications</option>
+                                    <option value="G">G (Tout public)</option>
+                                    <option value="PG">PG (Accord parental souhaitable)</option>
+                                    <option value="PG-13">PG-13 (Accord parental nécessaire)</option>
+                                    <option value="R">R (Restreint)</option>
                                 </select>
+                                <button type="button"
+                                        id="filterButton"
+                                        class="btn btn-primary">
+                                    <i class="bi bi-funnel"></i> Filtrer
+                                </button>
                             </div>
                         </div>
                     </div>
+
+                    <!-- Compteur de résultats et réinitialiser -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <div class="text-muted">
+                            <span id="totalResults">{{ count($films) }}</span> film(s) trouvé(s)
+                        </div>
+                        <div>
+                            <button type="button" id="resetFilters" class="btn btn-link btn-sm text-muted">
+                                <i class="bi bi-arrow-counterclockwise"></i> Réinitialiser les filtres
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Message pour aucun résultat de recherche -->
+                    <div id="noResultsMessage" class="alert alert-info d-none">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Aucun film ne correspond à vos critères de recherche.
+                    </div>
+
                     @if (empty($films))
                         <div class="alert alert-warning d-flex align-items-center gap-2">
                             <i class="bi bi-exclamation-triangle-fill"></i>
@@ -70,7 +119,7 @@
                                         <th>Description</th>
                                         <th class="text-center">Année</th>
                                         <th class="text-center">Durée</th>
-                                        <th class="text-center">Note</th>
+                                        <th class="text-center">Classification</th>
                                         <th class="text-center">Actions</th>
                                     </tr>
                                 </thead>
@@ -102,39 +151,46 @@
                                             </td>
                                             <td class="text-center">
                                                 @if(isset($film['rating']))
-                                                    <div class="stars-rating" data-rating="{{ $film['rating'] }}">
-                                                        @for($i = 1; $i <= 5; $i++)
-                                                            <i class="bi bi-star{{ $i <= $film['rating'] ? '-fill text-warning' : '' }}"></i>
-                                                        @endfor
-                                                    </div>
+                                                    <span class="badge {{ match($film['rating']) {
+                                                        'G' => 'bg-success',
+                                                        'PG' => 'bg-info',
+                                                        'PG-13' => 'bg-warning',
+                                                        'R' => 'bg-danger',
+                                                        default => 'bg-secondary'
+                                                    } }}">
+                                                        {{ $film['rating'] }}
+                                                    </span>
                                                 @else
-                                                    <span class="badge bg-secondary">N/A</span>
+                                                    <span class="text-muted">N/A</span>
                                                 @endif
                                             </td>
                                             <td class="text-center">
-                                                <div class="btn-group" role="group">
-                                                    <a href="{{ route('films.show', $film['filmId'] ?? $film['id']) }}" 
-                                                       class="btn btn-sm btn-outline-info" 
-                                                       data-bs-toggle="tooltip" 
+                                                <div class="btn-group">
+                                                    <a href="{{ route('films.show', ['id' => $film['filmId'] ?? $film['id']]) }}"
+                                                       class="btn btn-sm btn-outline-primary"
                                                        title="Voir les détails">
-                                                        <i class="bi bi-eye-fill"></i>
+                                                        <i class="bi bi-eye"></i>
                                                     </a>
-                                                    <a href="{{ route('films.edit', $film['filmId'] ?? $film['id']) }}" 
-                                                       class="btn btn-sm btn-outline-warning"
-                                                       data-bs-toggle="tooltip" 
-                                                       title="Modifier le film">
-                                                        <i class="bi bi-pencil-fill"></i>
+                                                    <a href="{{ route('stocks.show', ['filmId' => $film['filmId'] ?? $film['id']]) }}"
+                                                       class="btn btn-sm btn-outline-info"
+                                                       title="Gérer le stock">
+                                                        <i class="bi bi-box-seam"></i>
                                                     </a>
-                                                    <form action="{{ route('films.destroy', $film['filmId'] ?? $film['id']) }}" 
-                                                          method="POST" 
-                                                          class="d-inline">
+                                                    <a href="{{ route('films.edit', ['id' => $film['filmId'] ?? $film['id']]) }}"
+                                                       class="btn btn-sm btn-outline-secondary"
+                                                       title="Modifier">
+                                                        <i class="bi bi-pencil"></i>
+                                                    </a>
+                                                    <form action="{{ route('films.destroy', ['id' => $film['filmId'] ?? $film['id']]) }}"
+                                                          method="POST"
+                                                          style="display: inline;"
+                                                          onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer le film \'{{ addslashes($film['title']) }}\' ?');">
                                                         @csrf
                                                         @method('DELETE')
-                                                        <button type="submit" 
-                                                                class="btn btn-sm btn-outline-danger delete-film"
-                                                                data-bs-toggle="tooltip"
-                                                                title="Supprimer le film">
-                                                            <i class="bi bi-trash-fill"></i>
+                                                        <button type="submit"
+                                                                class="btn btn-sm btn-outline-danger"
+                                                                title="Supprimer">
+                                                            <i class="bi bi-trash"></i>
                                                         </button>
                                                     </form>
                                                 </div>
@@ -145,20 +201,12 @@
                             </table>
                         </div>
 
-                        <div class="mt-4 d-flex justify-content-between align-items-center">
-                            <p class="text-muted mb-0">
+                        <div class="mt-4">
+                                <p class="text-muted mb-0">
                                 <i class="bi bi-info-circle-fill"></i> 
-                                Total : <strong>{{ count($films) }}</strong> film(s) 
-                                <span class="filtered-count"></span>
+                                Films affichés : <strong id="totalResults">{{ count($films) }}</strong>
+                                sur <strong>{{ count($films) }}</strong> au total
                             </p>
-                            <div class="btn-group">
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="exportCSV">
-                                    <i class="bi bi-file-earmark-spreadsheet"></i> Exporter en CSV
-                                </button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" id="printTable">
-                                    <i class="bi bi-printer"></i> Imprimer
-                                </button>
-                            </div>
                         </div>
                     @endif
                 </div>
@@ -167,130 +215,84 @@
     </div>
 </div>
 
+<!-- Modal pour les détails du film -->
+<div class="modal fade" id="filmDetailsModal" tabindex="-1" aria-labelledby="filmDetailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="filmDetailsModalLabel">
+                    <i class="bi bi-film me-2"></i>Détails du film
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <div class="card border-0">
+                    <div class="card-body px-0">
+                        <h3 id="modalFilmTitle" class="card-title mb-4"></h3>
+                        
+                        <div class="row mb-4">
+                            <div class="col">
+                                <div class="card bg-light">
+                                    <div class="card-body">
+                                        <h6 class="card-subtitle mb-2">
+                                            <i class="bi bi-info-circle me-2"></i>Description
+                                        </h6>
+                                        <p id="modalFilmDescription" class="card-text"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-4">
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-subtitle mb-2">
+                                            <i class="bi bi-calendar-event me-2"></i>Année
+                                        </h6>
+                                        <p id="modalFilmYear" class="card-text display-6"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-subtitle mb-2">
+                                            <i class="bi bi-clock me-2"></i>Durée
+                                        </h6>
+                                        <p id="modalFilmLength" class="card-text display-6"></p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-4">
+                                <div class="card h-100">
+                                    <div class="card-body text-center">
+                                        <h6 class="card-subtitle mb-2">
+                                            <i class="bi bi-badge-tm me-2"></i>Classification
+                                        </h6>
+                                        <p id="modalFilmRating" class="card-text display-6"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle me-2"></i>Fermer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Activation des tooltips Bootstrap
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(function(tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-
-    // Gestionnaire de recherche
-    const searchInput = document.getElementById('searchInput');
-    const yearFilter = document.getElementById('yearFilter');
-    const ratingFilter = document.getElementById('ratingFilter');
-    const tableBody = document.getElementById('filmsTableBody');
-
-    function filterTable() {
-        const searchTerm = searchInput.value.toLowerCase();
-        const selectedYear = yearFilter.value;
-        const selectedRating = ratingFilter.value;
-
-        const rows = tableBody.getElementsByTagName('tr');
-        Array.from(rows).forEach(row => {
-            const title = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
-            const year = row.querySelector('td:nth-child(4)').textContent;
-            const ratingStars = row.querySelector('.stars-rating');
-            const rating = ratingStars ? ratingStars.getAttribute('data-rating') : 0;
-
-            const matchesSearch = title.includes(searchTerm);
-            const matchesYear = !selectedYear || year === selectedYear;
-            const matchesRating = !selectedRating || rating >= selectedRating;
-
-            row.style.display = matchesSearch && matchesYear && matchesRating ? '' : 'none';
-        });
-    }
-
-    let updateFilteredCount = () => {
-        const visibleRows = Array.from(tableBody.getElementsByTagName('tr'))
-            .filter(row => row.style.display !== 'none').length;
-        const totalRows = tableBody.getElementsByTagName('tr').length;
-        
-        const filteredCountSpan = document.querySelector('.filtered-count');
-        if (visibleRows !== totalRows) {
-            filteredCountSpan.textContent = ` (${visibleRows} affichés)`;
-        } else {
-            filteredCountSpan.textContent = '';
-        }
-    };
-
-    searchInput.addEventListener('input', () => {
-        filterTable();
-        updateFilteredCount();
-    });
-    
-    yearFilter.addEventListener('change', () => {
-        filterTable();
-        updateFilteredCount();
-    });
-    
-    ratingFilter.addEventListener('change', () => {
-        filterTable();
-        updateFilteredCount();
-    });
-
-    // Confirmation de suppression
-    document.querySelectorAll('.delete-film').forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const form = this.closest('form');
-            const filmTitle = this.closest('tr').querySelector('td:nth-child(2) strong').textContent;
-            
-            if (confirm(`Êtes-vous sûr de vouloir supprimer le film "${filmTitle}" ?`)) {
-                form.submit();
-            }
-        });
-    });
-
-    // Export CSV
-    document.getElementById('exportCSV').addEventListener('click', function() {
-        try {
-            const visibleRows = Array.from(tableBody.getElementsByTagName('tr'))
-                .filter(row => row.style.display !== 'none');
-
-            if (visibleRows.length === 0) {
-                alert('Aucune donnée à exporter');
-                return;
-            }
-
-            let csv = '\uFEFF'; // BOM pour Excel
-            csv += 'ID,Titre,Description,Année,Durée,Note\n';
-            
-            visibleRows.forEach(row => {
-                const cells = row.getElementsByTagName('td');
-                const values = [
-                    cells[0].textContent.trim(),
-                    `"${cells[1].querySelector('strong').textContent.replace(/"/g, '""')}"`,
-                    `"${cells[2].querySelector('.description-tooltip').getAttribute('title').replace(/"/g, '""')}"`,
-                    cells[3].textContent.trim(),
-                    cells[4].textContent.includes('min') ? cells[4].textContent.replace(/[^0-9]/g, '') : 'N/A',
-                    cells[5].querySelector('.stars-rating') ? 
-                        cells[5].querySelector('.stars-rating').getAttribute('data-rating') : 'N/A'
-                ];
-                csv += values.join(',') + '\n';
-            });
-
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(blob);
-            link.download = `films_${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(link.href);
-
-        } catch (error) {
-            console.error('Erreur lors de l\'export CSV:', error);
-            alert('Une erreur est survenue lors de l\'export CSV');
-        }
-    });
-
-    // Impression
-    document.getElementById('printTable').addEventListener('click', function() {
-        window.print();
-    });
-});
+// Le JavaScript pour les filtres et boutons est géré dans resources/js/films.js
+console.log('Page films/index chargée, films.js devrait être actif');
 </script>
 
 <style>

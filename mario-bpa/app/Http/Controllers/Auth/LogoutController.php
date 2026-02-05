@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class LogoutController extends Controller
@@ -17,22 +18,31 @@ class LogoutController extends Controller
      */
     public function __invoke(Request $request)
     {
-        // Récupère l'URL de redirection avant de nettoyer la session
-        $redirect = route('login');
+        try {
+            // Supprimer les données de session Toad avant la déconnexion Laravel
+            Session::forget('toad_user');
 
-        // Nettoyage complet de la session
-        Session::flush();
-        
-        // Supprime le cookie de session
-        $request->session()->invalidate();
-        
-        // Régénère le token CSRF
-        $request->session()->regenerateToken();
-        
-        // Déconnexion
-        Auth::logout();
+            // Déconnexion Laravel
+            Auth::guard('web')->logout();
 
-        // Redirige vers la page de connexion
-        return redirect($redirect)->with('status', 'Vous avez été déconnecté avec succès.');
+            // Invalider et régénérer la session
+            if ($request->session()) {
+                $request->session()->invalidate();
+                $request->session()->regenerateToken();
+            }
+
+            // Assurer que toutes les données de session sont bien supprimées
+            Session::flush();
+
+            // Redirection immédiate
+            return redirect('/login');
+
+        } catch (\Exception $e) {
+            // Log l'erreur mais continuer la déconnexion
+            Log::error('Erreur pendant la déconnexion: ' . $e->getMessage());
+            
+            // Forcer la redirection même en cas d'erreur
+            return redirect('/login');
+        }
     }
 }

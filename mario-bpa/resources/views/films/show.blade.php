@@ -18,10 +18,51 @@
                             <h3>{{ $film['title'] ?? 'Sans titre' }}</h3>
                             <p class="text-muted">{{ $film['description'] ?? 'Aucune description disponible.' }}</p>
                         </div>
-                        <div class="col-md-4 text-end">
+                        <div class="col-md-4">
                             @if(isset($film['rating']))
-                                <span class="badge bg-info fs-5">{{ $film['rating'] }}</span>
+                                <div class="text-end">
+                                    <span class="badge bg-info fs-5">{{ $film['rating'] }}</span>
+                                </div>
                             @endif
+
+                            <!-- Encart Disponibilité Stock -->
+                            <div class="card mt-3">
+                                <div class="card-header bg-primary text-white">
+                                    <h6 class="mb-0">📦 Disponibilité Stock</h6>
+                                </div>
+                                <div class="card-body">
+                                    @if($stock && $stock->quantite_disponible > 0)
+                                        <div class="mb-2">
+                                            <span class="badge bg-success fs-6">{{ $stock->quantite_disponible }} DVD disponibles</span>
+                                        </div>
+                                        <form action="{{ route('stocks.louer', $film['filmId'] ?? $film['id']) }}" method="POST">
+                                            @csrf
+                                            <button type="submit" class="btn btn-primary w-100" onclick="return confirm('Confirmer la location de ce DVD ?')">
+                                                Louer ce DVD
+                                            </button>
+                                        </form>
+                                    @else
+                                        <div class="alert alert-danger mb-0">
+                                            <strong>🔴 Rupture de stock</strong>
+                                        </div>
+                                    @endif
+
+                                    @if($stock && $stock->quantite_louee > 0)
+                                        <div class="mt-2">
+                                            <small class="text-muted">{{ $stock->quantite_louee }} DVD actuellement louées</small>
+                                        </div>
+                                    @endif
+
+                                    <!-- Bouton Gérer le stock -->
+                                    @if($stock)
+                                        <div class="mt-3">
+                                            <a href="{{ route('stocks.show', $film['filmId'] ?? $film['id']) }}" class="btn btn-success w-100">
+                                                <i class="bi bi-box-seam"></i> Gérer le stock
+                                            </a>
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
                         </div>
                     </div>
 

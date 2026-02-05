@@ -4,6 +4,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\FilmController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\StockController;
 use App\Http\Controllers\Auth\LogoutController;
 
 // Page d'accueil
@@ -21,7 +22,6 @@ Route::get('/home', [HomeController::class, 'index'])->name('home');
 
 // Routes films protégées par authentification
 Route::middleware(['auth'])->group(function () {
-    // Films CRUD
     Route::get('/films', [FilmController::class, 'index'])->name('films.index');
     Route::get('/films/create', [FilmController::class, 'create'])->name('films.create');
     Route::post('/films', [FilmController::class, 'store'])->name('films.store');
@@ -29,4 +29,12 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/films/{id}/edit', [FilmController::class, 'edit'])->name('films.edit');
     Route::put('/films/{id}', [FilmController::class, 'update'])->name('films.update');
     Route::delete('/films/{id}', [FilmController::class, 'destroy'])->name('films.destroy');
+
+    // Routes stocks
+    Route::get('/stocks', [StockController::class, 'index'])->name('stocks.index');
+    Route::get('/stocks/{filmId}', [StockController::class, 'show'])->name('stocks.show');
+    Route::post('/stocks/reception', [StockController::class, 'reception'])->name('stocks.reception');
+    Route::post('/stocks/retrait', [StockController::class, 'retrait'])->name('stocks.retrait');
+    Route::post('/stocks/{filmId}/louer', [StockController::class, 'louer'])->name('stocks.louer');
+    Route::post('/stocks/{filmId}/retourner', [StockController::class, 'retourner'])->name('stocks.retourner');
 });
