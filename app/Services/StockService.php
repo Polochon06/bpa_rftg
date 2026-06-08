@@ -1,266 +1,176 @@
 <?php
 
+/**
+ * SERVICE STOCK (StockService)
+ *
+ * Rôle : couche métier entre le StockController et l'API Toad (via ToadInventoryService).
+ * Traduit les opérations de stock (ajouter, retirer, consulter) en appels API.
+ *
+ * Pas de base de données locale pour le stock : tout passe par l'API Toad.
+ * Le service encapsule la logique (boucles, vérifications) pour alléger le contrôleur.
+ */
+
 namespace App\Services;
 
-use App\Models\DvdStock;
-use App\Models\MouvementStock;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class StockService
 {
-    protected ToadInventoryService $inventoryService;
+    /**
+     * Injection du ToadInventoryService (appels API réels) via le constructeur.
+     * Promoted property PHP 8 : déclare et assigne en une seule ligne.
+     */
+    public function __construct(protected ToadInventoryService $inventoryService) {}
 
-    public function __construct(ToadInventoryService $inventoryService)
+    /**
+     * Retourne un résumé du stock d'un film sous forme d'objet PHP.
+     *
+     * L'objet retourné a trois propriétés :
+     *  - quantite_totale     : nombre total d'exemplaires (loués + disponibles)
+     *  - quantite_disponible : exemplaires libres (peut être emprunté maintenant)
+     *  - quantite_louee      : exemplaires occupés (en location ou en panier)
+     *
+     * @param int|string $filmId  ID du film (entier ou chaîne comme "local_5")
+     * @return object|null        Objet stock, ou null si filmId non numérique
+     */
+    public function getStock(int|string $filmId): ?object
     {
-        $this->inventoryService = $inventoryService;
+        // Les films locaux ont un ID du type "local_5" — pas d'inventaire API possible
+        if (!is_numeric($filmId)) {
+            return null;
+        }
+
+        // Appel API : GET /inventories/film/{filmId}/stock → { total, available, occupied }
+        $data = $this->inventoryService->getFilmStock((int) $filmId);
+
+        // On convertit le tableau en objet stdClass avec des noms explicites pour les vues
+        return (object) [
+            'filmId'              => (int) $filmId,
+            'quantite_totale'     => $data['total']     ?? 0, // ?? 0 = valeur par défaut si clé absente
+            'quantite_disponible' => $data['available'] ?? 0,
+            'quantite_louee'      => $data['occupied']  ?? 0,
+        ];
     }
 
     /**
-     * Récupérer le stock d'un film (avec synchronisation API si disponible)
+     * Ajoute N exemplaires DVD au stock d'un film.
+     *
+     * Stratégie : appeler addInventory() en boucle autant de fois que la quantité demandée.
+     * L'API ne supporte pas l'ajout de N exemplaires en un seul appel.
+     *
+     * Le storeId (magasin) est résolu dans cet ordre :
+     *  1. Paramètre $storeId passé explicitement
+     *  2. storeId du staff connecté (stocké en session après login)
+     *  3. Valeur par défaut : 1
+     *
+     * @throws \Exception Si filmId invalide ou si un appel API échoue
      */
-    public function getStock($filmId, bool $syncFromApi = true)
+    public function ajouterStock(int|string $filmId, int $quantite, ?int $storeId = null): object
     {
-        $stock = DvdStock::where('filmId', $filmId)->first();
+        if (!is_numeric($filmId)) {
+            throw new \Exception("filmId invalide : {$filmId}");
+        }
 
-        // Synchroniser avec l'API si demandé et si le stock existe
-        if ($syncFromApi && $stock) {
-            try {
-                $this->inventoryService->syncStockFromApi($filmId, $stock);
-            } catch (\Exception $e) {
-                Log::warning('Impossible de synchroniser le stock avec l\'API', [
-                    'filmId' => $filmId,
-                    'error' => $e->getMessage()
-                ]);
+        // Résolution du magasin : session > paramètre > défaut 1
+        if ($storeId === null) {
+            // session('toad_user.staff', []) : accès nested en session avec valeur par défaut
+            $staff   = session('toad_user.staff', []);
+            $storeId = (int) ($staff['storeId'] ?? $staff['store_id'] ?? 1);
+        }
+
+        // Boucle : un appel API par exemplaire ajouté
+        for ($i = 0; $i < $quantite; $i++) {
+            $result = $this->inventoryService->addInventory((int) $filmId, $storeId);
+
+            // Si un exemplaire échoue, on arrête immédiatement et on lève une exception
+            if ($result === null) {
+                throw new \Exception("Échec de l'ajout de l'exemplaire #{$i} pour le film {$filmId}");
             }
         }
 
-        return $stock;
+        // Journaliser le succès de l'opération
+        Log::info('Stock ajouté via API', [
+            'filmId'   => $filmId,
+            'quantite' => $quantite,
+            'storeId'  => $storeId,
+        ]);
+
+        // Retourner le stock mis à jour (le contrôleur peut l'ignorer)
+        return $this->getStock($filmId);
     }
 
     /**
-     * Récupérer tous les stocks
+     * Retire N exemplaires disponibles du stock d'un film.
+     *
+     * Stratégie :
+     *  1. Récupérer tous les exemplaires disponibles
+     *  2. Vérifier qu'il y en a assez
+     *  3. Prendre les N premiers et les supprimer via l'API (DELETE /inventories/{id})
+     *
+     * @param string $motif  Raison du retrait (casse, perte, vol, obsolète, autre)
+     * @throws \Exception    Si stock insuffisant ou si une suppression échoue
      */
-    public function getAllStocks()
+    public function retirerStock(int|string $filmId, int $quantite, string $motif): object
     {
-        return DvdStock::orderBy('filmId')->get();
-    }
+        if (!is_numeric($filmId)) {
+            throw new \Exception("filmId invalide : {$filmId}");
+        }
 
-    /**
-     * Ajouter du stock (réception de DVD)
-     */
-    public function ajouterStock($filmId, $quantite, $prixAchat = null, $notes = null)
-    {
-        try {
-            DB::beginTransaction();
+        // Récupérer uniquement les exemplaires disponibles (pas loués, pas en panier)
+        $disponibles = $this->inventoryService->getAvailableInventories((int) $filmId);
 
-            // Récupérer ou créer le stock
-            $stock = DvdStock::firstOrCreate(
-                ['filmId' => $filmId],
-                [
-                    'quantite_totale' => 0,
-                    'quantite_disponible' => 0,
-                    'quantite_louee' => 0,
-                    'prix_location' => 3.99,
-                ]
+        // Vérification métier : impossible de retirer plus qu'il n'y a de disponibles
+        if (count($disponibles) < $quantite) {
+            throw new \Exception(
+                "Stock disponible insuffisant. Disponibles : " . count($disponibles) . ", Demandé : {$quantite}"
             );
-
-            // Mettre à jour les quantités
-            $stock->quantite_totale += $quantite;
-            $stock->quantite_disponible += $quantite;
-            $stock->save();
-
-            // Enregistrer le mouvement
-            MouvementStock::create([
-                'filmId' => $filmId,
-                'type' => 'entree',
-                'quantite' => $quantite,
-                'motif' => 'Réception',
-                'notes' => $notes,
-                'user_id' => auth()->id(),
-            ]);
-
-            DB::commit();
-            Log::info('Stock ajouté', ['filmId' => $filmId, 'quantite' => $quantite]);
-
-            return $stock;
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur ajout stock', ['error' => $e->getMessage()]);
-            throw $e;
         }
-    }
 
-    /**
-     * Retirer du stock (casse, perte, vol)
-     */
-    public function retirerStock($filmId, $quantite, $motif, $description = null)
-    {
-        try {
-            DB::beginTransaction();
+        // Prendre les N premiers exemplaires à supprimer (array_slice ne modifie pas l'original)
+        $aSupprimer = array_slice($disponibles, 0, $quantite);
 
-            $stock = DvdStock::where('filmId', $filmId)->firstOrFail();
+        foreach ($aSupprimer as $exemplaire) {
+            // L'API peut nommer la clé "inventoryId" ou "inventory_id" selon la version
+            $inventoryId = $exemplaire['inventoryId'] ?? $exemplaire['inventory_id'] ?? null;
 
-            // Vérifier qu'on a assez de stock disponible
-            if ($stock->quantite_disponible < $quantite) {
-                throw new \Exception("Stock disponible insuffisant. Disponible: {$stock->quantite_disponible}, Demandé: {$quantite}");
+            if (!$inventoryId) {
+                throw new \Exception("ID exemplaire manquant dans la réponse API");
             }
 
-            // Mettre à jour les quantités
-            $stock->quantite_totale -= $quantite;
-            $stock->quantite_disponible -= $quantite;
-            $stock->save();
+            // Appel API : DELETE /inventories/{inventoryId}
+            $result = $this->inventoryService->deleteInventory((int) $inventoryId);
 
-            // Enregistrer le mouvement
-            MouvementStock::create([
-                'filmId' => $filmId,
-                'type' => 'sortie',
-                'quantite' => -$quantite,
-                'motif' => $motif,
-                'notes' => $description,
-                'user_id' => auth()->id(),
-            ]);
-
-            DB::commit();
-            Log::info('Stock retiré', ['filmId' => $filmId, 'quantite' => $quantite, 'motif' => $motif]);
-
-            return $stock;
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur retrait stock', ['error' => $e->getMessage()]);
-            throw $e;
-        }
-    }
-
-    /**
-     * Louer un DVD
-     */
-    public function louerDvd($filmId)
-    {
-        try {
-            DB::beginTransaction();
-
-            $stock = DvdStock::where('filmId', $filmId)->firstOrFail();
-
-            // Vérifier disponibilité
-            if ($stock->quantite_disponible < 1) {
-                throw new \Exception("Aucun DVD disponible pour ce film");
+            if (!$result) {
+                throw new \Exception("Échec de la suppression de l'exemplaire #{$inventoryId}");
             }
-
-            // Mettre à jour les quantités
-            $stock->quantite_disponible -= 1;
-            $stock->quantite_louee += 1;
-            $stock->save();
-
-            // Enregistrer le mouvement
-            MouvementStock::create([
-                'filmId' => $filmId,
-                'type' => 'location',
-                'quantite' => -1,
-                'motif' => 'Location',
-                'user_id' => auth()->id(),
-            ]);
-
-            DB::commit();
-            Log::info('DVD loué', ['filmId' => $filmId]);
-
-            return $stock;
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur location DVD', ['error' => $e->getMessage()]);
-            throw $e;
         }
+
+        // Journaliser le motif du retrait (traçabilité)
+        Log::info('Stock retiré via API', [
+            'filmId'   => $filmId,
+            'quantite' => $quantite,
+            'motif'    => $motif,
+        ]);
+
+        // Retourner le stock mis à jour
+        return $this->getStock($filmId);
     }
 
     /**
-     * Retourner un DVD
+     * Retourne une collection vide.
+     * Il n'existe pas d'endpoint "tous les stocks" dans l'API Toad.
      */
-    public function retournerDvd($filmId)
+    public function getAllStocks(): \Illuminate\Support\Collection
     {
-        try {
-            DB::beginTransaction();
-
-            $stock = DvdStock::where('filmId', $filmId)->firstOrFail();
-
-            // Vérifier qu'il y a des DVD loués
-            if ($stock->quantite_louee < 1) {
-                throw new \Exception("Aucun DVD loué pour ce film");
-            }
-
-            // Mettre à jour les quantités
-            $stock->quantite_louee -= 1;
-            $stock->quantite_disponible += 1;
-            $stock->save();
-
-            // Enregistrer le mouvement
-            MouvementStock::create([
-                'filmId' => $filmId,
-                'type' => 'retour',
-                'quantite' => 1,
-                'motif' => 'Retour de location',
-                'user_id' => auth()->id(),
-            ]);
-
-            DB::commit();
-            Log::info('DVD retourné', ['filmId' => $filmId]);
-
-            return $stock;
-        } catch (\Exception $e) {
-            DB::rollBack();
-            Log::error('Erreur retour DVD', ['error' => $e->getMessage()]);
-            throw $e;
-        }
+        return collect();
     }
 
     /**
-     * Récupérer l'historique des mouvements d'un film
+     * Retourne une collection vide.
+     * L'historique des mouvements de stock n'est pas disponible sans base locale.
      */
-    public function getHistorique($filmId, $limit = 50)
+    public function getHistorique(): \Illuminate\Support\Collection
     {
-        return MouvementStock::where('filmId', $filmId)
-            ->orderBy('created_at', 'desc')
-            ->limit($limit)
-            ->get();
-    }
-
-    /**
-     * Vérifier la cohérence du stock
-     */
-    public function verifierCoherence($filmId)
-    {
-        $stock = $this->getStock($filmId);
-
-        if (!$stock) {
-            return true;
-        }
-
-        $coherent = ($stock->quantite_totale == ($stock->quantite_disponible + $stock->quantite_louee));
-
-        if (!$coherent) {
-            Log::alert('Incohérence stock détectée', [
-                'filmId' => $filmId,
-                'total' => $stock->quantite_totale,
-                'disponible' => $stock->quantite_disponible,
-                'louee' => $stock->quantite_louee
-            ]);
-        }
-
-        return $coherent;
-    }
-
-    /**
-     * Initialiser le stock pour un film
-     */
-    public function initialiserStock($filmId, $prixLocation = 3.99)
-    {
-        return DvdStock::firstOrCreate(
-            ['filmId' => $filmId],
-            [
-                'quantite_totale' => 0,
-                'quantite_disponible' => 0,
-                'quantite_louee' => 0,
-                'prix_location' => $prixLocation,
-            ]
-        );
+        return collect();
     }
 }

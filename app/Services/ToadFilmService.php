@@ -1,615 +1,373 @@
 <?php
 
+/**
+ * SERVICE FILMS (ToadFilmService)
+ *
+ * Rôle : point d'accès unique à toutes les opérations sur les films.
+ *
+ * Architecture "double source" :
+ *  - LECTURE   → API Toad (base Peach distante) en priorité
+ *  - ÉCRITURE  → API Toad en priorité (POST/DELETE exposés par le contrôleur Java)
+ *               Fallback SQLite local si l'API est indisponible ou retourne une erreur
+ *
+ * Fusion locale/distante :
+ *  Si un film local a le même filmId qu'un film distant,
+ *  le film LOCAL remplace (override) le film distant dans la liste.
+ *  Cela permet de modifier un film Peach sans toucher à l'API.
+ */
+
 namespace App\Services;
 
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Cache\TaggableStore;
-use App\Models\Film as LocalFilm;
-use Illuminate\Database\QueryException;
+use App\Models\Film as LocalFilm;        // Modèle Eloquent → table films (SQLite local)
+use Illuminate\Support\Facades\Http;    // Client HTTP de Laravel (wrapping Guzzle)
+use Illuminate\Support\Facades\Log;     // Journalisation
 
 class ToadFilmService
 {
+    // URL de base de l'API Toad (ex: http://localhost:3001/api)
     protected string $baseUrl;
-    protected const TIMEOUT = 10;
-    protected const RETRY_TIMES = 3;
-    protected const RETRY_SLEEP = 100;
 
+    /**
+     * Constructeur : lit l'URL de l'API depuis la config (services.toad.url).
+     * Cette valeur est définie dans config/services.php et lue depuis .env (TOAD_API_URL).
+     */
     public function __construct()
     {
-        $toadUrl = config('services.toad.url');
-        if (empty($toadUrl)) {
-            Log::error('URL de l\'API Toad non configurée');
-            throw new \RuntimeException('La configuration de l\'API Toad est manquante.');
+        $url = config('services.toad.url');
+
+        // Sécurité : impossible de fonctionner sans URL configurée
+        if (empty($url)) {
+            throw new \RuntimeException('TOAD_API_URL non configuré.');
         }
-        $this->baseUrl = rtrim($toadUrl, '/');
+
+        // rtrim supprime le '/' final pour éviter les doubles slashes dans les URLs
+        $this->baseUrl = rtrim($url, '/');
     }
 
-    protected function prepareRequest(): PendingRequest
+    // =========================================================================
+    // CLIENT HTTP INTERNE
+    // =========================================================================
+
+    /**
+     * Crée et configure le client HTTP pour chaque appel à l'API.
+     *
+     * Token résolu dans cet ordre :
+     *  1. Token JWT de l'utilisateur connecté (en session après login)
+     *  2. Token de service défini dans config/services.php (accès anonyme)
+     */
+    private function http()
     {
-        // Priorité 1: Token de l'utilisateur connecté (session)
-        $userToken = session('toad_user.token');
+        $token = session('toad_user.token') ?: config('services.toad.token');
 
-        // Priorité 2: Token de configuration (pour l'API générique)
-        $configToken = config('services.toad.token');
+        // acceptJson() : ajoute le header "Accept: application/json"
+        // timeout(10)  : abandonne la requête après 10 secondes (évite les blocages)
+        $client = Http::acceptJson()->timeout(10);
 
-        // Utiliser le token utilisateur si disponible, sinon le token de config
-        $token = $userToken ?: $configToken;
-
-        if (empty($token)) {
-            Log::warning('Aucun token disponible (ni utilisateur ni config)');
-        } else {
-            Log::debug('Utilisation du token', [
-                'type' => $userToken ? 'utilisateur' : 'config',
-                'token_preview' => substr($token, 0, 20) . '...'
-            ]);
-        }
-
-        $request = Http::timeout(self::TIMEOUT)
-            ->retry(self::RETRY_TIMES, self::RETRY_SLEEP)
-            ->acceptJson()
-            ->withHeaders([
-                'Accept' => 'application/json',
-                'Content-Type' => 'application/json'
-            ]);
-
+        // withToken() ajoute "Authorization: Bearer {token}" à chaque requête
         if ($token) {
-            $request = $request->withToken($token);
+            $client = $client->withToken($token);
         }
 
-        return $request;
+        return $client;
     }
 
-    protected function getNextFilmId(): int
+    // =========================================================================
+    // NORMALISATION DES DONNÉES
+    // =========================================================================
+
+    /**
+     * Transforme un film distant (réponse API Peach) en tableau unifié.
+     *
+     * L'API Peach utilise le camelCase (filmId, releaseYear…).
+     * On garde exactement ces noms pour rester cohérent avec la vue.
+     * 'source' = 'remote' permet à la vue de savoir d'où vient le film.
+     */
+    private function normalizeRemote(array $film): array
     {
-        try {
-            $maxId = 1000; // ID de départ
-
-            // Vérifier les IDs de l'API
-            try {
-                $remoteFilms = $this->getAllFilms() ?? [];
-                foreach ($remoteFilms as $film) {
-                    $currentId = (int)($film['id'] ?? 0);
-                    if ($currentId > $maxId) {
-                        $maxId = $currentId;
-                    }
-                }
-            } catch (\Exception $e) {
-                Log::warning('Impossible de récupérer les films distants pour l\'ID', ['error' => $e->getMessage()]);
-            }
-
-            // Vérifier les IDs locaux
-            try {
-                $localMaxId = LocalFilm::max('id') ?? 0;
-                if ($localMaxId > $maxId) {
-                    $maxId = $localMaxId;
-                }
-            } catch (QueryException $e) {
-                Log::warning('Base de données locale non disponible pour l\'ID', ['error' => $e->getMessage()]);
-            }
-
-            return $maxId + 1;
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la génération du prochain ID', ['error' => $e->getMessage()]);
-            return time(); // Fallback à un timestamp comme ID
-        }
+        return [
+            'id'              => $film['filmId'] ?? null,      // id = alias de filmId
+            'filmId'          => $film['filmId'] ?? null,
+            'title'           => $film['title'] ?? null,
+            'description'     => $film['description'] ?? null,
+            'releaseYear'     => $film['releaseYear'] ?? null,
+            'length'          => $film['length'] ?? null,
+            'rating'          => $film['rating'] ?? null,
+            'languageId'      => $film['originalLanguageId'] ?? null,
+            'rentalDuration'  => $film['rentalDuration'] ?? null,
+            'rentalRate'      => $film['rentalRate'] ?? null,
+            'replacementCost' => $film['replacementCost'] ?? null,
+            'specialFeatures' => $film['specialFeatures'] ?? null,
+            'lastUpdate'      => $film['lastUpdate'] ?? null,
+            'source'          => 'remote', // Marqueur : vient de l'API Peach
+        ];
     }
 
+    /**
+     * Transforme un film local (modèle Eloquent) en tableau unifié.
+     *
+     * Si le film n'a pas de filmId Peach (film créé en local),
+     * on génère un ID fictif "local_{id}" pour éviter toute collision.
+     * 'source' = 'local' permet à la vue de savoir d'où vient le film.
+     */
+    private function normalizeLocal(LocalFilm $f): array
+    {
+        return [
+            'id'          => $f->filmId ?? 'local_' . $f->id,
+            'filmId'      => $f->filmId ?? 'local_' . $f->id,
+            'title'       => $f->title,
+            'description' => $f->description,
+            'releaseYear' => $f->releaseYear,
+            'length'      => $f->length,
+            'rating'      => $f->rating,
+            'source'      => 'local',        // Marqueur : film stocké en SQLite
+            '_localId'    => $f->id,         // ID SQLite brut (utile pour le debug)
+        ];
+    }
+
+    // =========================================================================
+    // LECTURE
+    // =========================================================================
+
+    /**
+     * Retourne la liste complète des films (distants + locaux fusionnés).
+     *
+     * Algorithme de fusion :
+     *  1. Récupérer tous les films distants et les indexer par filmId
+     *  2. Pour chaque film local, l'ajouter ou remplacer l'entrée distante si même filmId
+     *  3. Retourner le tableau final réindexé
+     */
+    public function getAllFilms(): array
+    {
+        // --- Étape 1 : Films distants depuis l'API ---
+        $remote = [];
+        try {
+            $resp = $this->http()->get($this->baseUrl . '/films');
+
+            if ($resp->successful()) {
+                // array_map applique normalizeRemote() à chaque film de la réponse JSON
+                $remote = array_map([$this, 'normalizeRemote'], $resp->json() ?: []);
+            } else {
+                Log::warning('getAllFilms: API status ' . $resp->status());
+            }
+        } catch (\Exception $e) {
+            // Si l'API est hors ligne, on continue avec uniquement les films locaux
+            Log::error('getAllFilms: ' . $e->getMessage());
+        }
+
+        // Indexer les films distants par filmId (string) pour permettre l'override
+        $indexed = [];
+        foreach ($remote as $f) {
+            $indexed[(string)($f['filmId'])] = $f;
+        }
+
+        // --- Étape 2 : Films locaux (override ou ajout) ---
+        foreach (LocalFilm::all() as $local) {
+            $norm = $this->normalizeLocal($local);
+            $key  = (string)($local->filmId ?? 'local_' . $local->id);
+
+            // Si la clé existe déjà (film Peach), le film local REMPLACE le film distant
+            $indexed[$key] = $norm;
+        }
+
+        // array_values() : réindexe de 0 à N (array associatif → tableau numéroté)
+        return array_values($indexed);
+    }
+
+    /**
+     * Retourne un film par son ID.
+     *
+     * Priorité au local : si un override existe pour ce filmId, il est retourné en premier.
+     * Sinon, appel à l'API Toad.
+     */
+    public function getFilmById($id): ?array
+    {
+        $idStr = (string) $id;
+
+        // Chercher d'abord en base SQLite (override local ou film 100% local)
+        $local = LocalFilm::where('filmId', $idStr)
+            ->orWhere('id', is_numeric($id) ? (int)$id : null) // Cherche aussi par id SQLite
+            ->first();
+
+        if ($local) {
+            return $this->normalizeLocal($local); // Local trouvé → retourner immédiatement
+        }
+
+        // Sinon interroger l'API Toad
+        try {
+            $resp = $this->http()->get($this->baseUrl . '/films/' . $id);
+
+            if ($resp->successful()) {
+                return $this->normalizeRemote($resp->json());
+            }
+
+            Log::warning("getFilmById($id): status " . $resp->status());
+        } catch (\Exception $e) {
+            Log::error("getFilmById($id): " . $e->getMessage());
+        }
+
+        return null; // Film introuvable ni en local ni en distant
+    }
+
+    // =========================================================================
+    // MUTATIONS (toutes stockées en local car l'API Peach est en lecture seule)
+    // =========================================================================
+
+    /**
+     * Crée un film via l'API Toad (POST /films).
+     * Fallback : si l'API échoue, création en SQLite local.
+     */
     public function createFilm(array $data): ?array
     {
+        $payload = [
+            'title'           => $data['title'],
+            'description'     => $data['description'] ?? null,
+            'releaseYear'     => (int) ($data['releaseYear'] ?? 0),
+            'length'          => (int) ($data['length'] ?? 0),
+            'rating'          => $data['rating'] ?? null,
+            'rentalDuration'  => (int) ($data['rentalDuration'] ?? 3),
+            'rentalRate'      => (float) ($data['rentalRate'] ?? 4.99),
+            'replacementCost' => (float) ($data['replacementCost'] ?? 19.99),
+        ];
+
+        // Tentative de création via l'API Toad
         try {
-            $nextId = $this->getNextFilmId();
-            
-            $filmData = [
-                'id' => $nextId,
-                'title' => $data['title'],
-                'description' => $data['description'],
-                'releaseYear' => (int) $data['releaseYear'],
-                'length' => (int) $data['length'],
-                'rating' => $data['rating']
-            ];
+            $resp = $this->http()->post($this->baseUrl . '/films', $payload);
 
-            // Essayer d'abord l'API distante
-            try {
-                $response = $this->prepareRequest()->post($this->baseUrl . '/films', $filmData);
-                if ($response->successful()) {
-                    $this->flushFilmsCache();
-                    Log::info('Film créé avec succès via l\'API', ['id' => $nextId]);
-                    return $response->json();
-                }
-            } catch (\Exception $e) {
-                Log::warning('API distante non disponible pour la création', ['error' => $e->getMessage()]);
+            if ($resp->successful()) {
+                $created = $resp->json();
+                Log::info('Film créé via API Toad', ['filmId' => $created['filmId'] ?? null]);
+                return $this->normalizeRemote($created);
             }
 
-            // Si l'API échoue, essayer la base de données locale
-            try {
-                $localFilm = LocalFilm::create([
-                    'id' => $nextId,
-                    'filmId' => 'local_' . $nextId,
-                    'title' => $filmData['title'],
-                    'description' => $filmData['description'],
-                    'releaseYear' => $filmData['releaseYear'],
-                    'length' => $filmData['length'],
-                    'rating' => $filmData['rating']
-                ]);
-
-                $this->flushFilmsCache();
-                Log::info('Film créé localement avec succès', ['id' => $nextId]);
-                
-                return [
-                    'id' => $localFilm->id,
-                    'filmId' => $localFilm->filmId,
-                    'title' => $localFilm->title,
-                    'description' => $localFilm->description,
-                    'releaseYear' => $localFilm->releaseYear,
-                    'length' => $localFilm->length,
-                    'rating' => $localFilm->rating
-                ];
-            } catch (QueryException $e) {
-                Log::warning('Base de données locale non disponible pour la création', ['error' => $e->getMessage()]);
-            }
-
-            // En dernier recours, sauvegarder dans le fichier
-            $fallbackPath = storage_path('app/films_fallback.json');
-            try {
-                $films = [];
-                if (file_exists($fallbackPath)) {
-                    $content = file_get_contents($fallbackPath);
-                    $films = json_decode($content, true) ?: [];
-                }
-
-                $newFilm = array_merge($filmData, ['filmId' => 'local_' . $nextId]);
-                $films[] = $newFilm;
-
-                file_put_contents($fallbackPath, json_encode($films, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-                $this->flushFilmsCache();
-                
-                Log::info('Film créé dans le fichier de sauvegarde', ['id' => $nextId]);
-                return $newFilm;
-            } catch (\Exception $e) {
-                Log::error('Échec de la création du film dans le fichier', ['error' => $e->getMessage()]);
-            }
-
-            return null;
+            Log::warning('createFilm: API status ' . $resp->status() . ' — fallback local');
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la création du film', ['error' => $e->getMessage()]);
+            Log::warning('createFilm: API indisponible — fallback local. ' . $e->getMessage());
+        }
+
+        // Fallback : création en SQLite local
+        try {
+            $local = LocalFilm::create([
+                'filmId'      => null,
+                'title'       => $payload['title'],
+                'description' => $payload['description'],
+                'releaseYear' => $payload['releaseYear'],
+                'length'      => $payload['length'],
+                'rating'      => $payload['rating'],
+            ]);
+
+            $local->filmId = 'local_' . $local->id;
+            $local->save();
+
+            Log::info('Film créé localement (fallback)', ['id' => $local->id]);
+
+            return $this->normalizeLocal($local);
+        } catch (\Exception $e) {
+            Log::error('createFilm (fallback local): ' . $e->getMessage());
             return null;
         }
     }
 
     /**
-     * Normalise les données d'un film de snake_case vers camelCase
+     * Met à jour un film.
+     *
+     * Deux cas :
+     *  - Film déjà en local (local pur ou override existant) → mise à jour directe
+     *  - Film Peach pur (pas encore en local) → création d'un override local avec le même filmId
+     *    La prochaine lecture retournera le local à la place du distant.
      */
-    protected function normalizeFilm(array $film): array
-    {
-        return [
-            'filmId' => $film['film_id'] ?? $film['filmId'] ?? $film['id'] ?? null,
-            'id' => $film['film_id'] ?? $film['id'] ?? null,
-            'title' => $film['title'] ?? null,
-            'description' => $film['description'] ?? null,
-            'releaseYear' => $film['release_year'] ?? $film['releaseYear'] ?? null,
-            'languageId' => $film['language_id'] ?? $film['languageId'] ?? null,
-            'rentalDuration' => $film['rental_duration'] ?? $film['rentalDuration'] ?? null,
-            'rentalRate' => $film['rental_rate'] ?? $film['rentalRate'] ?? null,
-            'length' => $film['length'] ?? null,
-            'replacementCost' => $film['replacement_cost'] ?? $film['replacementCost'] ?? null,
-            'rating' => $film['rating'] ?? null,
-            'specialFeatures' => $film['special_features'] ?? $film['specialFeatures'] ?? null,
-            'lastUpdate' => $film['last_update'] ?? $film['lastUpdate'] ?? null,
-        ];
-    }
-
-    public function getAllFilms(): ?array
-    {
-        try {
-            $response = $this->prepareRequest()->get($this->baseUrl . '/films');
-
-            if ($response->successful()) {
-                $remote = $response->json() ?: [];
-
-                // Normaliser les films distants (snake_case vers camelCase)
-                $remote = array_map([$this, 'normalizeFilm'], $remote);
-
-                try {
-                    $local = LocalFilm::all()->map(function($f) {
-                        return [
-                            'filmId' => $f->filmId ?? null,
-                            'id' => $f->id,
-                            'title' => $f->title,
-                            'description' => $f->description,
-                            'releaseYear' => $f->releaseYear,
-                            'length' => $f->length,
-                            'rating' => $f->rating,
-                        ];
-                    })->toArray();
-
-                    if (!empty($local)) {
-                        $existing = [];
-                        foreach ($remote as $r) {
-                            if (isset($r['filmId'])) $existing[] = (string)$r['filmId'];
-                            if (isset($r['id'])) $existing[] = (string)$r['id'];
-                        }
-
-                        foreach ($local as $l) {
-                            $lid = (string)($l['filmId'] ?? $l['id'] ?? '');
-                            if ($lid === '') continue;
-                            if (!in_array($lid, $existing, true)) {
-                                $remote[] = $l;
-                            }
-                        }
-                    }
-                } catch (QueryException $qe) {
-                    // DB not available - pas de souci, on continue
-                }
-
-                // Toujours charger les films du fichier fallback (films modifiés ou créés localement)
-                $fallbackPath = storage_path('app/films_fallback.json');
-                if (file_exists($fallbackPath)) {
-                    $content = file_get_contents($fallbackPath);
-                    $fallbackFilms = json_decode($content, true) ?: [];
-
-                    // Construire une liste des IDs déjà présents
-                    $existingIds = [];
-                    foreach ($remote as $r) {
-                        if (isset($r['filmId'])) $existingIds[] = (string)$r['filmId'];
-                        if (isset($r['id'])) $existingIds[] = (string)$r['id'];
-                    }
-
-                    // Ajouter ou remplacer les films du fallback
-                    foreach ($fallbackFilms as $fallbackFilm) {
-                        $fid = (string)($fallbackFilm['filmId'] ?? $fallbackFilm['id'] ?? '');
-                        if ($fid === '') continue;
-
-                        // Si c'est un film modifié (modified_X), remplacer l'original
-                        if (isset($fallbackFilm['originalId'])) {
-                            $originalId = (string)$fallbackFilm['originalId'];
-                            // Trouver et remplacer le film original
-                            foreach ($remote as $key => $film) {
-                                $filmIdToCheck = (string)($film['filmId'] ?? $film['id'] ?? '');
-                                if ($filmIdToCheck === $originalId) {
-                                    // Remplacer le film original par la version modifiée
-                                    $remote[$key] = $fallbackFilm;
-                                    Log::debug('Film distant remplacé par version modifiée', ['originalId' => $originalId, 'modifiedId' => $fid]);
-                                    continue 2; // Passer au film suivant
-                                }
-                            }
-                        }
-
-                        // Sinon, ajouter le film s'il n'existe pas déjà
-                        if (!in_array($fid, $existingIds, true)) {
-                            $remote[] = $fallbackFilm;
-                            Log::debug('Film du fallback ajouté', ['id' => $fid]);
-                        }
-                    }
-                }
-
-                return $remote;
-            }
-            
-            Log::error('Erreur lors de la récupération des films depuis l\'API', [
-                'status' => $response->status(),
-                'body' => $response->body()
-            ]);
-            
-            // Si l'API échoue, essayer de retourner uniquement les films locaux
-            try {
-                $local = LocalFilm::all()->map(function($f) {
-                    return [
-                        'filmId' => $f->filmId ?? null,
-                        'id' => $f->id,
-                        'title' => $f->title,
-                        'description' => $f->description,
-                        'releaseYear' => $f->releaseYear,
-                        'length' => $f->length,
-                        'rating' => $f->rating,
-                    ];
-                })->toArray();
-                
-                if (!empty($local)) {
-                    Log::info('Retour des films locaux uniquement (API indisponible)');
-                    return $local;
-                }
-            } catch (QueryException $qe) {
-                // Si la BD n'est pas disponible, essayer le fichier
-                $fallbackPath = storage_path('app/films_fallback.json');
-                if (file_exists($fallbackPath)) {
-                    $content = file_get_contents($fallbackPath);
-                    $local = json_decode($content, true);
-                    if (!empty($local)) {
-                        Log::info('Retour des films du fichier de sauvegarde (API et DB indisponibles)');
-                        return $local;
-                    }
-                }
-            }
-
-            return [];
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la récupération des films', [
-                'error' => $e->getMessage()
-            ]);
-            return null;
-        }
-    }
-
-    public function getFilmById($id): ?array
-    {
-        try {
-            Log::info('Recherche du film', ['id' => $id]);
-
-            // D'abord vérifier le fichier fallback pour les films modifiés (priorité haute)
-            $fallbackPath = storage_path('app/films_fallback.json');
-            if (file_exists($fallbackPath)) {
-                try {
-                    $content = file_get_contents($fallbackPath);
-                    $films = json_decode($content, true) ?: [];
-
-                    foreach ($films as $film) {
-                        // Vérifier si c'est le film qu'on cherche ou s'il remplace l'original
-                        if ((isset($film['filmId']) && $film['filmId'] == $id) ||
-                            (isset($film['id']) && $film['id'] == $id) ||
-                            (isset($film['originalId']) && $film['originalId'] == $id)) {
-                            Log::info('Film trouvé dans le fichier de sauvegarde (version modifiée)', ['id' => $id]);
-                            return $film;
-                        }
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Erreur lors de la lecture du fichier', ['error' => $e->getMessage()]);
-                }
-            }
-
-            // Si c'est un film local, chercher dans la base de données locale
-            if (is_string($id) && str_starts_with($id, 'local_')) {
-                try {
-                    $localFilm = LocalFilm::where('filmId', $id)
-                        ->orWhere('id', str_replace('local_', '', $id))
-                        ->first();
-
-                    if ($localFilm) {
-                        $film = [
-                            'filmId' => $localFilm->filmId,
-                            'id' => $localFilm->id,
-                            'title' => $localFilm->title,
-                            'description' => $localFilm->description,
-                            'releaseYear' => $localFilm->releaseYear,
-                            'length' => $localFilm->length,
-                            'rating' => $localFilm->rating
-                        ];
-                        Log::info('Film trouvé dans la base locale', ['id' => $id]);
-                        return $film;
-                    }
-                } catch (QueryException $e) {
-                    Log::warning('Base de données locale non disponible', ['error' => $e->getMessage()]);
-                }
-            }
-
-            // Essayer l'API pour les films non locaux
-            if (!str_starts_with($id, 'local_')) {
-                try {
-                    $response = $this->prepareRequest()->get($this->baseUrl . '/films/' . $id);
-                    if ($response->successful()) {
-                        $film = $response->json();
-                        // Normaliser le film de l'API (snake_case vers camelCase)
-                        $film = $this->normalizeFilm($film);
-                        Log::info('Film trouvé via l\'API', ['id' => $id]);
-                        return $film;
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('API non disponible', ['error' => $e->getMessage()]);
-                }
-            }
-
-            Log::warning('Film non trouvé', ['id' => $id]);
-            return null;
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la recherche du film', [
-                'id' => $id,
-                'error' => $e->getMessage()
-            ]);
-            return null;
-        }
-    }
-
     public function updateFilm($id, array $data): ?array
     {
         try {
-            Log::info('Tentative de mise à jour du film', ['id' => $id]);
-            
-            $filmData = [
-                'id' => $id, // Conserver l'ID original
-                'title' => $data['title'],
-                'description' => $data['description'],
-                'releaseYear' => (int) $data['releaseYear'],
-                'length' => (int) $data['length'],
-                'rating' => $data['rating']
-            ];
+            $idStr = (string) $id;
 
-            // Essayer d'abord la base de données locale
-            try {
-                $searchId = (string)$id;
-                $searchIdNoPrefix = str_replace('local_', '', $searchId);
-                
-                $lf = LocalFilm::where('filmId', $searchId)
-                    ->orWhere('filmId', $searchIdNoPrefix)
-                    ->orWhere('id', $searchId)
-                    ->orWhere('id', $searchIdNoPrefix)
-                    ->first();
+            // Chercher un enregistrement local par filmId (override ou local pur)
+            $local = LocalFilm::where('filmId', $idStr)->first();
 
-                if ($lf) {
-                    Log::info('Mise à jour du film dans la base de données locale', ['id' => $id]);
-                    $lf->update($filmData);
-                    $this->flushFilmsCache();
-                    
-                    $updatedFilm = [
-                        'filmId' => $lf->filmId,
-                        'id' => $lf->id,
-                        'title' => $lf->title,
-                        'description' => $lf->description,
-                        'releaseYear' => $lf->releaseYear,
-                        'length' => $lf->length,
-                        'rating' => $lf->rating
-                    ];
-                    
-                    Log::info('Film local mis à jour avec succès', ['film' => $updatedFilm]);
-                    return $updatedFilm;
-                }
-            } catch (QueryException $qe) {
-                Log::warning('Base de données locale non disponible', [
-                    'error' => $qe->getMessage()
-                ]);
+            if (!$local) {
+                // Film Peach sans override → créer un nouvel enregistrement local avec le même filmId
+                $local = new LocalFilm();
+                $local->filmId = $idStr; // Lier à l'ID Peach pour que la fusion l'écrase
             }
 
-            // Si ce n'est pas un film local, l'API TOAD est en lecture seule
-            // Solution: Copier le film dans le stockage local/fichier pour le modifier
-            if (!str_starts_with($id, 'local_')) {
-                Log::info('Film distant détecté - Copie vers le stockage local pour modification', [
-                    'id' => $id
-                ]);
+            // Mettre à jour les champs (si non fourni, conserver la valeur existante)
+            $local->title       = $data['title'];
+            $local->description = $data['description'] ?? $local->description;
+            $local->releaseYear = (int) ($data['releaseYear'] ?? $local->releaseYear);
+            $local->length      = (int) ($data['length'] ?? $local->length);
+            $local->rating      = $data['rating'] ?? $local->rating;
+            $local->save();
 
-                // L'API TOAD/Peach ne permet pas la modification des films existants (403 Forbidden)
-                // On copie donc le film dans notre système de fichiers local
-            }
+            Log::info('Film mis à jour localement', ['filmId' => $idStr]);
 
-            // Utiliser le fichier de sauvegarde comme stockage modifiable
-            $fallbackPath = storage_path('app/films_fallback.json');
-
-            // S'assurer que le fichier existe
-            if (!file_exists($fallbackPath)) {
-                file_put_contents($fallbackPath, json_encode([], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-            }
-
-            $content = file_get_contents($fallbackPath);
-            $films = json_decode($content, true) ?: [];
-
-            $updated = false;
-            foreach ($films as $key => $film) {
-                if ((isset($film['filmId']) && $film['filmId'] == $id) ||
-                    (isset($film['id']) && $film['id'] == $id)) {
-                    // Film déjà dans le fichier, le mettre à jour
-                    $films[$key] = array_merge($film, $filmData, ['filmId' => $film['filmId'] ?? $id]);
-                    $updated = true;
-                    break;
-                }
-            }
-
-            // Si le film n'est pas dans le fichier, c'est un film distant qu'on copie
-            if (!$updated) {
-                Log::info('Ajout du film distant au stockage local pour modification', ['id' => $id]);
-                $newFilm = array_merge($filmData, [
-                    'id' => $id,
-                    'filmId' => $id,
-                    'originalId' => $id
-                ]);
-                $films[] = $newFilm;
-                $updated = true;
-            }
-
-            if ($updated) {
-                file_put_contents($fallbackPath, json_encode($films, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-                $this->flushFilmsCache();
-                Log::info('Film mis à jour/copié avec succès dans le fichier de sauvegarde', ['id' => $id]);
-                return array_merge(['id' => $id, 'filmId' => $id], $filmData);
-            }
-
-            Log::error('Échec inattendu de la mise à jour', ['id' => $id]);
-            return null;
-            
+            return $this->normalizeLocal($local);
         } catch (\Exception $e) {
-            Log::error('Erreur lors de la mise à jour du film', [
-                'id' => $id,
-                'error' => $e->getMessage()
-            ]);
+            Log::error('updateFilm: ' . $e->getMessage());
             return null;
         }
     }
 
-    protected function flushFilmsCache(): void
-    {
-        try {
-            if (Cache::getStore() instanceof TaggableStore) {
-                Cache::tags(['films'])->flush();
-            }
-        } catch (\Exception $e) {
-            Log::warning('Impossible de nettoyer le cache avec tags', [
-                'error' => $e->getMessage()
-            ]);
-        }
-    }
-
+    /**
+     * Supprime un film.
+     *
+     * Stratégie selon l'origine du film :
+     *  - Film purement local (filmId = 'local_*') → suppression SQLite uniquement
+     *  - Film distant (filmId numérique) → DELETE via API Toad en priorité,
+     *    puis suppression de l'éventuel override local.
+     *    Fallback : si l'API échoue, suppression de l'override local uniquement.
+     */
     public function deleteFilm($id): bool
     {
-        try {
-            Log::info('Tentative de suppression du film', ['id' => $id]);
+        $idStr = (string) $id;
 
-            // Si c'est un film local, essayer d'abord la base de données locale
-            $isLocal = is_string($id) && str_starts_with($id, 'local_');
-            if ($isLocal) {
-                try {
-                    $localFilm = LocalFilm::where('filmId', $id)
-                        ->orWhere('id', str_replace('local_', '', $id))
-                        ->first();
+        // Cas 1 : film purement local (jamais envoyé à l'API)
+        if (str_starts_with($idStr, 'local_')) {
+            try {
+                $local = LocalFilm::where('filmId', $idStr)->first();
 
-                    if ($localFilm) {
-                        $localFilm->delete();
-                        $this->flushFilmsCache();
-                        Log::info('Film supprimé de la base locale', ['id' => $id]);
-                        return true;
-                    }
-                } catch (QueryException $e) {
-                    Log::warning('Base de données locale non disponible', ['error' => $e->getMessage()]);
+                if ($local) {
+                    $local->delete();
+                    Log::info('Film local supprimé', ['filmId' => $idStr]);
+                    return true;
                 }
+
+                Log::warning("deleteFilm: film local introuvable [$idStr]");
+                return false;
+            } catch (\Exception $e) {
+                Log::error('deleteFilm (local): ' . $e->getMessage());
+                return false;
             }
-
-            // Si ce n'est pas un film local ou la BD n'est pas disponible, essayer l'API
-            if (!$isLocal) {
-                try {
-                    $response = $this->prepareRequest()->delete($this->baseUrl . '/films/' . $id);
-                    if ($response->successful()) {
-                        $this->flushFilmsCache();
-                        Log::info('Film supprimé via l\'API', ['id' => $id]);
-                        return true;
-                    }
-                } catch (\Exception $e) {
-                    Log::warning('API non disponible pour la suppression', ['error' => $e->getMessage()]);
-                }
-            }
-
-            // En dernier recours, essayer le fichier de sauvegarde
-            $fallbackPath = storage_path('app/films_fallback.json');
-            if (file_exists($fallbackPath)) {
-                try {
-                    $content = file_get_contents($fallbackPath);
-                    $films = json_decode($content, true) ?: [];
-                    
-                    $newFilms = array_filter($films, function($film) use ($id) {
-                        return !((isset($film['filmId']) && $film['filmId'] == $id) ||
-                               (isset($film['id']) && $film['id'] == $id) ||
-                               (isset($film['originalId']) && $film['originalId'] == $id));
-                    });
-                    
-                    if (count($newFilms) < count($films)) {
-                        file_put_contents($fallbackPath, json_encode(array_values($newFilms), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-                        $this->flushFilmsCache();
-                        Log::info('Film supprimé du fichier de sauvegarde', ['id' => $id]);
-                        return true;
-                    }
-                } catch (\Exception $e) {
-                    Log::error('Erreur lors de la suppression dans le fichier', ['error' => $e->getMessage()]);
-                }
-            }
-
-            Log::warning('Film non trouvé pour la suppression', ['id' => $id]);
-            return false;
-
-        } catch (\Exception $e) {
-            Log::error('Erreur lors de la suppression du film', [
-                'id' => $id,
-                'error' => $e->getMessage()
-            ]);
-            return false;
         }
+
+        // Cas 2 : film distant → appel DELETE sur l'API Toad
+        $apiSuccess = false;
+
+        try {
+            $resp = $this->http()->delete($this->baseUrl . '/films/' . $id);
+
+            if ($resp->successful()) {
+                Log::info('Film supprimé via API Toad', ['filmId' => $idStr]);
+                $apiSuccess = true;
+            } else {
+                Log::warning("deleteFilm: API status " . $resp->status() . " pour filmId [$idStr]");
+            }
+        } catch (\Exception $e) {
+            Log::warning('deleteFilm: API indisponible — ' . $e->getMessage());
+        }
+
+        // Supprimer également l'éventuel override local (quel que soit le résultat API)
+        try {
+            $local = LocalFilm::where('filmId', $idStr)
+                ->orWhere('id', is_numeric($id) ? (int)$id : null)
+                ->first();
+
+            if ($local) {
+                $local->delete();
+                Log::info('Override local supprimé pour filmId', ['filmId' => $idStr]);
+            }
+        } catch (\Exception $e) {
+            Log::error('deleteFilm (suppression override local): ' . $e->getMessage());
+        }
+
+        return $apiSuccess;
     }
 }

@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Guide Interactif — Application Mario DVD</title>
+<style>
+:root {
+  --bg:#0a0a0c; --surf:#111114; --surf2:#18181c; --surf3:#222228;
+  --border:rgba(255,255,255,0.06); --border2:rgba(255,255,255,0.11);
+  --text:#e2e0da; --text2:#90908a; --text3:#505048;
+  --gold:#c8a255; --goldh:#d4b06e; --golddim:rgba(200,162,85,0.12);
+  --green:#4a9c6d; --red:#c04848; --blue:#3a80c0; --orange:#c07830;
+  --font:'Inter',-apple-system,sans-serif; --r:8px; --r2:5px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:14px;line-height:1.6;display:flex;min-height:100vh}
+a{color:var(--gold);text-decoration:none}
+
+/* SIDEBAR */
+#sidebar{width:260px;min-height:100vh;background:var(--surf);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;bottom:0;overflow-y:auto;z-index:100}
+.sidebar-brand{padding:1.25rem 1.25rem 0.75rem;border-bottom:1px solid var(--border)}
+.sidebar-brand h1{font-size:13px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold)}
+.sidebar-brand p{font-size:11px;color:var(--text3);margin-top:.2rem}
+.sidebar-progress{padding:.75rem 1.25rem;border-bottom:1px solid var(--border)}
+.progress-bar-wrap{height:4px;background:var(--surf3);border-radius:2px;overflow:hidden;margin-top:.4rem}
+.progress-bar-fill{height:100%;background:var(--gold);border-radius:2px;transition:width .4s ease;width:0%}
+.progress-label{font-size:11px;color:var(--text3)}
+nav{flex:1;padding:.5rem}
+.nav-section{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);padding:.75rem .75rem .3rem}
+.nav-item{display:flex;align-items:center;gap:.5rem;padding:.45rem .75rem;border-radius:var(--r2);color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;margin-bottom:1px}
+.nav-item:hover{background:var(--surf2);color:var(--text)}
+.nav-item.active{background:var(--surf2);color:var(--gold)}
+.nav-item .icon{width:16px;text-align:center;font-size:14px;opacity:.7}
+.nav-item.done .icon::after{content:' ✓';color:var(--green);font-size:10px}
+
+/* MAIN */
+#main{margin-left:260px;flex:1;min-height:100vh}
+
+/* SECTIONS */
+.section{display:none;padding:2.5rem;max-width:900px}
+.section.active{display:block}
+.section-tag{font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.section h2{font-size:24px;font-weight:700;margin-bottom:.4rem}
+.section .subtitle{color:var(--text2);font-size:14px;margin-bottom:2rem}
+
+/* CARDS */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);margin-bottom:1.25rem}
+.card-head{padding:.85rem 1.25rem;border-bottom:1px solid var(--border);font-weight:600;font-size:14px;display:flex;align-items:center;gap:.5rem}
+.card-body{padding:1.25rem}
+
+/* CODE BLOCKS */
+.code-block{background:#0d0d10;border:1px solid var(--border2);border-radius:var(--r2);padding:1.25rem;font-family:'Courier New',monospace;font-size:12.5px;line-height:1.7;overflow-x:auto;position:relative;margin:.75rem 0}
+.code-block .kw{color:#c792ea}
+.code-block .fn{color:#82aaff}
+.code-block .str{color:#c3e88d}
+.code-block .num{color:#f78c6c}
+.code-block .cmt{color:#546e7a;font-style:italic}
+.code-block .cls{color:#ffcb6b}
+.code-block .var{color:#89ddff}
+.code-label{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--text3);margin-bottom:.3rem}
+
+/* SCHEMA / ARCHITECTURE */
+.arch-wrap{padding:1.5rem;overflow-x:auto}
+.arch{display:flex;align-items:center;gap:0;flex-wrap:nowrap;min-width:600px}
+.arch-box{background:var(--surf2);border:1px solid var(--border2);border-radius:var(--r);padding:.75rem 1rem;text-align:center;min-width:120px;position:relative}
+.arch-box .ab-title{font-size:12px;font-weight:700;color:var(--text)}
+.arch-box .ab-sub{font-size:10px;color:var(--text2);margin-top:.15rem}
+.arch-box.gold{border-color:var(--gold);background:var(--golddim)}
+.arch-box.gold .ab-title{color:var(--gold)}
+.arch-box.green{border-color:rgba(74,156,109,.4);background:rgba(74,156,109,.07)}
+.arch-box.green .ab-title{color:var(--green)}
+.arch-box.blue{border-color:rgba(58,128,192,.4);background:rgba(58,128,192,.07)}
+.arch-box.blue .ab-title{color:var(--blue)}
+.arch-arrow{font-size:22px;color:var(--text3);padding:0 .5rem;user-select:none}
+.arch-col{display:flex;flex-direction:column;gap:.5rem}
+
+/* BADGES */
+.badge{display:inline-block;font-size:11px;font-weight:700;letter-spacing:.04em;padding:.2em .55em;border-radius:4px}
+.badge-get{background:rgba(74,156,109,.15);color:var(--green);border:1px solid rgba(74,156,109,.3)}
+.badge-post{background:rgba(200,162,85,.12);color:var(--gold);border:1px solid rgba(200,162,85,.3)}
+.badge-put{background:rgba(58,128,192,.12);color:var(--blue);border:1px solid rgba(58,128,192,.3)}
+.badge-delete{background:rgba(192,72,72,.12);color:var(--red);border:1px solid rgba(192,72,72,.3)}
+
+/* ROUTE TABLE */
+.route-table{width:100%;border-collapse:collapse}
+.route-table th{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);padding:.6rem 1rem;background:var(--surf2);border-bottom:1px solid var(--border);text-align:left}
+.route-table td{padding:.7rem 1rem;border-bottom:1px solid var(--border);font-size:13px;vertical-align:top}
+.route-table tr:last-child td{border-bottom:none}
+.route-table tr:hover td{background:rgba(255,255,255,.02)}
+.route-path{font-family:'Courier New',monospace;color:var(--text);font-size:12px}
+.route-ctrl{font-size:12px;color:var(--text2)}
+
+/* QUIZ */
+.quiz-container{max-width:700px}
+.quiz-question{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:1.5rem;margin-bottom:1.25rem;display:none}
+.quiz-question.active{display:block}
+.quiz-q-num{font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--gold);margin-bottom:.5rem}
+.quiz-q-text{font-size:15px;font-weight:600;color:var(--text);margin-bottom:.25rem}
+.quiz-q-context{font-size:12px;color:var(--text2);margin-bottom:1rem;line-height:1.5}
+.quiz-options{display:flex;flex-direction:column;gap:.5rem;margin-bottom:1rem}
+.quiz-opt{display:flex;align-items:flex-start;gap:.75rem;padding:.75rem 1rem;border:1px solid var(--border2);border-radius:var(--r2);cursor:pointer;transition:all .15s;background:var(--surf2)}
+.quiz-opt:hover{border-color:var(--gold);background:var(--golddim)}
+.quiz-opt.correct{border-color:var(--green)!important;background:rgba(74,156,109,.1)!important}
+.quiz-opt.wrong{border-color:var(--red)!important;background:rgba(192,72,72,.1)!important}
+.quiz-opt.disabled{pointer-events:none;opacity:.7}
+.quiz-opt-letter{width:22px;height:22px;border-radius:50%;background:var(--surf3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text2);flex-shrink:0;margin-top:.05rem}
+.quiz-opt.correct .quiz-opt-letter{background:var(--green);color:#fff;border-color:var(--green)}
+.quiz-opt.wrong .quiz-opt-letter{background:var(--red);color:#fff;border-color:var(--red)}
+.quiz-feedback{padding:.75rem 1rem;border-radius:var(--r2);font-size:13px;margin-bottom:.75rem;display:none}
+.quiz-feedback.show{display:block}
+.quiz-feedback.ok{background:rgba(74,156,109,.1);border:1px solid rgba(74,156,109,.3);color:#6abf8a}
+.quiz-feedback.ko{background:rgba(192,72,72,.1);border:1px solid rgba(192,72,72,.3);color:#d47070}
+.quiz-nav{display:flex;align-items:center;justify-content:space-between;margin-top:1rem}
+.quiz-score-box{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:2rem;text-align:center;display:none}
+.quiz-score-num{font-size:4rem;font-weight:700;color:var(--gold);line-height:1}
+.quiz-score-label{color:var(--text2);margin-top:.5rem}
+.quiz-score-msg{margin-top:1.25rem;font-size:14px;color:var(--text)}
+
+/* BESOIN */
+.besoin-section{margin-bottom:2rem}
+.besoin-section h3{font-size:15px;font-weight:700;color:var(--gold);margin-bottom:.75rem;display:flex;align-items:center;gap:.5rem}
+.besoin-field{background:var(--surf2);border:1px solid var(--border2);border-radius:var(--r2);padding:1rem 1.25rem;margin-bottom:.75rem}
+.besoin-field label{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);display:block;margin-bottom:.4rem}
+.besoin-field textarea{width:100%;background:transparent;border:none;color:var(--text);font-family:var(--font);font-size:13px;resize:vertical;min-height:80px;outline:none;line-height:1.6}
+.besoin-field textarea::placeholder{color:var(--text3)}
+.besoin-hint{font-size:11px;color:var(--text3);margin-top:.3rem;line-height:1.5}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.42rem 1rem;border-radius:var(--r2);font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;border:none;transition:all .15s}
+.btn-primary{background:var(--gold);color:#0a0a0c;font-weight:600}
+.btn-primary:hover{background:var(--goldh)}
+.btn-secondary{background:var(--surf3);color:var(--text2);border:1px solid var(--border2)}
+.btn-secondary:hover{background:var(--surf2);color:var(--text)}
+.btn-outline{background:transparent;color:var(--gold);border:1px solid var(--gold)}
+.btn-outline:hover{background:var(--golddim)}
+
+/* HIGHLIGHT BOXES */
+.info-box{padding:.85rem 1rem;border-radius:var(--r2);margin:.75rem 0;font-size:13px;line-height:1.6;display:flex;gap:.6rem}
+.info-box .icon{flex-shrink:0;margin-top:.05rem}
+.info-box.tip{background:var(--golddim);border:1px solid rgba(200,162,85,.25);color:var(--text)}
+.info-box.note{background:rgba(58,128,192,.08);border:1px solid rgba(58,128,192,.25);color:var(--text)}
+.info-box.warn{background:rgba(192,72,72,.08);border:1px solid rgba(192,72,72,.25);color:var(--text)}
+
+/* TIMELINE */
+.timeline{position:relative;padding-left:2rem}
+.timeline::before{content:'';position:absolute;left:.6rem;top:.5rem;bottom:.5rem;width:2px;background:var(--border2)}
+.tl-step{position:relative;margin-bottom:1.25rem}
+.tl-dot{position:absolute;left:-1.65rem;top:.3rem;width:14px;height:14px;border-radius:50%;background:var(--surf3);border:2px solid var(--gold);box-shadow:0 0 0 3px var(--bg)}
+.tl-step.active-step .tl-dot{background:var(--gold)}
+.tl-title{font-weight:600;font-size:13px;color:var(--text);margin-bottom:.2rem}
+.tl-desc{font-size:13px;color:var(--text2)}
+
+/* STEP ANIMATION */
+.steps{display:flex;flex-direction:column;gap:.6rem}
+.step{background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:.75rem 1rem;display:flex;align-items:flex-start;gap:.75rem;opacity:.45;transition:all .3s}
+.step.lit{opacity:1;border-color:var(--border2)}
+.step-num{width:24px;height:24px;border-radius:50%;background:var(--surf3);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--text2);flex-shrink:0}
+.step.lit .step-num{background:var(--gold);color:#0a0a0c;border-color:var(--gold)}
+.step-text{font-size:13px;color:var(--text2)}
+.step.lit .step-text{color:var(--text)}
+
+/* GRID */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+
+/* PILULE TAG */
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:.15em .5em;border-radius:3px;background:var(--surf3);color:var(--text2);margin-right:.25rem}
+
+/* PRINT BUTTON */
+.print-btn{position:fixed;bottom:1.5rem;right:1.5rem;z-index:999}
+
+@media(max-width:900px){
+  #sidebar{width:220px}
+  #main{margin-left:220px}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+}
+@media print{#sidebar,.print-btn{display:none}#main{margin:0}.section{display:block!important;page-break-after:always}}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside id="sidebar">
+  <div class="sidebar-brand">
+    <h1>🎬 Mario DVD</h1>
+    <p>Guide interactif &amp; Quiz</p>
+  </div>
+  <div class="sidebar-progress">
+    <span class="progress-label" id="prog-label">Progression : 0 / 8</span>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar"></div></div>
+  </div>
+  <nav>
+    <div class="nav-section">Apprendre</div>
+    <div class="nav-item active" onclick="show('s0')" id="nav-s0"><span class="icon">🏠</span> Accueil</div>
+    <div class="nav-item" onclick="show('s1')" id="nav-s1"><span class="icon">🏗️</span> Architecture</div>
+    <div class="nav-item" onclick="show('s2')" id="nav-s2"><span class="icon">🌐</span> Requêtes HTTP</div>
+    <div class="nav-item" onclick="show('s3')" id="nav-s3"><span class="icon">🔀</span> MVC &amp; Routes</div>
+    <div class="nav-item" onclick="show('s4')" id="nav-s4"><span class="icon">🔐</span> Authentification</div>
+    <div class="nav-item" onclick="show('s5')" id="nav-s5"><span class="icon">🎬</span> Films (CRUD)</div>
+    <div class="nav-item" onclick="show('s6')" id="nav-s6"><span class="icon">📦</span> Stocks</div>
+    <div class="nav-section">Évaluer</div>
+    <div class="nav-item" onclick="show('s7')" id="nav-s7"><span class="icon">🎯</span> Quiz — 15 questions</div>
+    <div class="nav-section">Documenter</div>
+    <div class="nav-item" onclick="show('s8')" id="nav-s8"><span class="icon">📄</span> Expression de besoin</div>
+  </nav>
+</aside>
+
+<!-- MAIN -->
+<main id="main">
+
+<!-- ======== S0 : ACCUEIL ======== -->
+<div class="section active" id="s0">
+  <div class="section-tag">Introduction</div>
+  <h2>Bienvenue dans le guide interactif</h2>
+  <p class="subtitle">Comprends l'architecture, les requêtes et le code de l'application Mario DVD — puis teste tes connaissances.</p>
+
+  <div class="grid-2" style="margin-bottom:1.5rem">
+    <div class="card" style="cursor:pointer" onclick="show('s1')">
+      <div class="card-body" style="text-align:center;padding:1.75rem 1.25rem!important">
+        <div style="font-size:2rem;margin-bottom:.75rem">🏗️</div>
+        <div style="font-weight:600;margin-bottom:.3rem">Architecture</div>
+        <div style="font-size:12px;color:var(--text2)">Laravel · Toad API · SQLite · Peach DB</div>
+      </div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="show('s2')">
+      <div class="card-body" style="text-align:center;padding:1.75rem 1.25rem!important">
+        <div style="font-size:2rem;margin-bottom:.75rem">🌐</div>
+        <div style="font-weight:600;margin-bottom:.3rem">Requêtes HTTP</div>
+        <div style="font-size:12px;color:var(--text2)">GET · POST · PUT · DELETE</div>
+      </div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="show('s7')">
+      <div class="card-body" style="text-align:center;padding:1.75rem 1.25rem!important">
+        <div style="font-size:2rem;margin-bottom:.75rem">🎯</div>
+        <div style="font-weight:600;margin-bottom:.3rem">Quiz interactif</div>
+        <div style="font-size:12px;color:var(--text2)">15 questions sur le vrai code</div>
+      </div>
+    </div>
+    <div class="card" style="cursor:pointer" onclick="show('s8')">
+      <div class="card-body" style="text-align:center;padding:1.75rem 1.25rem!important">
+        <div style="font-size:2rem;margin-bottom:.75rem">📄</div>
+        <div style="font-weight:600;margin-bottom:.3rem">Expression de besoin</div>
+        <div style="font-size:12px;color:var(--text2)">Template guidé à remplir</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">📌 Ce que tu vas apprendre</div>
+    <div class="card-body">
+      <div class="timeline">
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">Comment les composants communiquent</div><div class="tl-desc">Browser → Laravel → API Toad → Base Peach</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">Le rôle de chaque fichier PHP</div><div class="tl-desc">Routes, Contrôleurs, Services, Modèles, Vues</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">Pourquoi il y a deux sources de données</div><div class="tl-desc">API distante en lecture · SQLite local en écriture</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">Comment l'authentification fonctionne</div><div class="tl-desc">Token JWT Toad + fallback SQLite</div></div>
+      </div>
+    </div>
+  </div>
+  <button class="btn btn-primary" onclick="show('s1')">Commencer →</button>
+</div>
+
+<!-- ======== S1 : ARCHITECTURE ======== -->
+<div class="section" id="s1">
+  <div class="section-tag">Section 1 / 7</div>
+  <h2>Architecture de l'application</h2>
+  <p class="subtitle">L'application est composée de 4 couches qui communiquent entre elles.</p>
+
+  <div class="card">
+    <div class="card-head">🗺️ Vue d'ensemble</div>
+    <div class="arch-wrap">
+      <div class="arch">
+        <div class="arch-box gold"><div class="ab-title">🖥️ Navigateur</div><div class="ab-sub">Chrome / Firefox</div></div>
+        <div class="arch-arrow">→</div>
+        <div class="arch-col">
+          <div class="arch-box gold"><div class="ab-title">⚙️ Laravel (PHP)</div><div class="ab-sub">Routes · Contrôleurs · Vues Blade</div></div>
+          <div class="arch-box" style="border-color:var(--border2)"><div class="ab-title" style="color:var(--text2)">💾 SQLite local</div><div class="ab-sub">Films créés localement</div></div>
+        </div>
+        <div class="arch-arrow">⇄</div>
+        <div class="arch-col">
+          <div class="arch-box blue"><div class="ab-title">🐸 Toad API</div><div class="ab-sub">Java Spring Boot</div></div>
+          <div class="arch-box green"><div class="ab-title">🍑 Peach DB</div><div class="ab-sub">MySQL distant</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-head" style="color:var(--gold)">⚙️ Laravel (Mario)</div>
+      <div class="card-body">
+        <p style="color:var(--text2);font-size:13px;margin-bottom:.75rem">C'est le <strong style="color:var(--text)">frontend + backend PHP</strong>. Il gère :</p>
+        <ul style="color:var(--text2);font-size:13px;padding-left:1.25rem;line-height:1.8">
+          <li>L'affichage des pages (Blade)</li>
+          <li>Les routes HTTP</li>
+          <li>L'authentification des utilisateurs</li>
+          <li>Les appels à l'API Toad</li>
+          <li>Une base SQLite locale pour les films/stocks créés</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-head" style="color:var(--blue)">🐸 API Toad (Java)</div>
+      <div class="card-body">
+        <p style="color:var(--text2);font-size:13px;margin-bottom:.75rem">C'est le <strong style="color:var(--text)">serveur intermédiaire Java Spring Boot</strong>. Il :</p>
+        <ul style="color:var(--text2);font-size:13px;padding-left:1.25rem;line-height:1.8">
+          <li>Reçoit les requêtes HTTP de Laravel</li>
+          <li>Accède à la base MySQL Peach</li>
+          <li>Retourne des données JSON</li>
+          <li>Gère le CRUD films &amp; stocks</li>
+          <li>Authentifie via email / mot de passe</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🔄 Double source de données — Pourquoi ?</div>
+    <div class="card-body">
+      <div class="info-box tip"><span class="icon">💡</span><span>L'API Toad est la source principale. Mais si elle est hors ligne, ou si on veut créer des données "privées", on utilise le SQLite local.</span></div>
+      <div class="grid-2" style="margin-top:.75rem">
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem">
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:.5rem">📖 LECTURE → API Toad</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.6">Les films et stocks sont lus depuis l'API Toad (base Peach distante) en priorité.</div>
+        </div>
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem">
+          <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:.5rem">✏️ ÉCRITURE → API + fallback SQLite</div>
+          <div style="font-size:12px;color:var(--text2);line-height:1.6">Création/suppression : tentée via l'API. Si échec → stockage SQLite local.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">📂 Structure des fichiers clés</div>
+    <div class="card-body">
+      <div class="code-block"><span class="cmt">// Les fichiers les plus importants de l'application</span>
+routes/<span class="fn">web.php</span>               <span class="cmt">→ toutes les URLs de l'application</span>
+app/Http/Controllers/<span class="cls">FilmController.php</span>  <span class="cmt">→ gère les films (CRUD)</span>
+app/Http/Controllers/<span class="cls">StockController.php</span> <span class="cmt">→ gère les stocks</span>
+app/Services/<span class="cls">ToadFilmService.php</span>         <span class="cmt">→ appels API Toad pour les films</span>
+app/Services/<span class="cls">ToadInventoryService.php</span>    <span class="cmt">→ appels API Toad pour les stocks</span>
+app/Models/<span class="cls">Film.php</span>                    <span class="cmt">→ modèle SQLite local</span>
+resources/views/films/                  <span class="cmt">→ pages HTML (Blade)</span>
+resources/views/stocks/                 <span class="cmt">→ pages HTML stocks</span></div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show('s2')">Suivant : Requêtes HTTP →</button>
+</div>
+
+<!-- ======== S2 : HTTP ======== -->
+<div class="section" id="s2">
+  <div class="section-tag">Section 2 / 7</div>
+  <h2>Les requêtes HTTP</h2>
+  <p class="subtitle">HTTP est le protocole de communication entre le navigateur et le serveur. Il existe 4 méthodes principales (CRUD).</p>
+
+  <div class="grid-2">
+    <div class="card"><div class="card-head"><span class="badge badge-get">GET</span> Lire</div><div class="card-body"><p style="font-size:13px;color:var(--text2)">Demander une ressource sans la modifier. Le navigateur envoie un GET à chaque changement d'URL.</p><div class="code-block" style="margin-top:.75rem"><span class="cmt">// Exemples dans l'application</span>
+GET <span class="str">/films</span>         <span class="cmt">→ liste des films</span>
+GET <span class="str">/films/42</span>      <span class="cmt">→ détail du film 42</span>
+GET <span class="str">/stocks</span>        <span class="cmt">→ liste des stocks</span></div></div></div>
+    <div class="card"><div class="card-head"><span class="badge badge-post">POST</span> Créer</div><div class="card-body"><p style="font-size:13px;color:var(--text2)">Envoyer des données pour créer une ressource. Le formulaire HTML utilise POST.</p><div class="code-block" style="margin-top:.75rem"><span class="cmt">// Exemples dans l'application</span>
+POST <span class="str">/films</span>         <span class="cmt">→ créer un film</span>
+POST <span class="str">/login</span>         <span class="cmt">→ se connecter</span>
+POST <span class="str">/stocks/reception</span><span class="cmt">→ ajouter DVD</span></div></div></div>
+    <div class="card"><div class="card-head"><span class="badge badge-put">PUT</span> Modifier</div><div class="card-body"><p style="font-size:13px;color:var(--text2)">Mettre à jour une ressource existante. Les navigateurs ne supportent pas PUT dans les formulaires HTML.</p><div class="code-block" style="margin-top:.75rem"><span class="cmt">// Exemples dans l'application</span>
+PUT <span class="str">/films/42</span>      <span class="cmt">→ modifier le film 42</span>
+<span class="cmt">// Laravel utilise un champ caché :</span>
+&lt;input <span class="var">type</span>=<span class="str">"hidden"</span> <span class="var">name</span>=<span class="str">"_method"</span> <span class="var">value</span>=<span class="str">"PUT"</span>&gt;</div></div></div>
+    <div class="card"><div class="card-head"><span class="badge badge-delete">DELETE</span> Supprimer</div><div class="card-body"><p style="font-size:13px;color:var(--text2)">Supprimer une ressource. Même contrainte : formulaire HTML + champ _method.</p><div class="code-block" style="margin-top:.75rem"><span class="cmt">// Exemples dans l'application</span>
+DELETE <span class="str">/films/42</span>   <span class="cmt">→ supprimer le film 42</span>
+<span class="cmt">// Dans la vue Blade :</span>
+@<span class="fn">method</span>(<span class="str">'DELETE'</span>)  <span class="cmt">→ génère le champ caché</span></div></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🔄 Cycle complet — Créer un film</div>
+    <div class="card-body">
+      <div id="cycle-steps" class="steps">
+        <div class="step lit" id="cy0"><div class="step-num">1</div><div class="step-text"><strong>Navigateur</strong> — L'utilisateur remplit le formulaire et clique "Enregistrer".<br><span style="font-size:11px;color:var(--text3)">→ POST /films avec les données du formulaire</span></div></div>
+        <div class="step" id="cy1"><div class="step-num">2</div><div class="step-text"><strong>Routes (web.php)</strong> — Laravel reçoit POST /films et appelle FilmController@store.<br><span style="font-size:11px;color:var(--text3)">Route::post('/films', [FilmController::class, 'store'])</span></div></div>
+        <div class="step" id="cy2"><div class="step-num">3</div><div class="step-text"><strong>FilmController::store()</strong> — Valide les données (titre, description, année…).<br><span style="font-size:11px;color:var(--text3)">Si invalide → retourne code 422 avec les erreurs</span></div></div>
+        <div class="step" id="cy3"><div class="step-num">4</div><div class="step-text"><strong>ToadFilmService::createFilm()</strong> — Appelle POST /films sur l'API Toad.<br><span style="font-size:11px;color:var(--text3)">Si l'API échoue → fallback : création en SQLite local</span></div></div>
+        <div class="step" id="cy4"><div class="step-num">5</div><div class="step-text"><strong>API Toad (Java)</strong> — Insère le film dans la base Peach et retourne le film créé en JSON.<br><span style="font-size:11px;color:var(--text3)">Réponse : { "filmId": 1001, "title": "...", ... }</span></div></div>
+        <div class="step" id="cy5"><div class="step-num">6</div><div class="step-text"><strong>Retour Laravel</strong> — Redirige vers /films avec message flash "Film créé avec succès".<br><span style="font-size:11px;color:var(--text3)">return redirect()->route('films.index')->with('success', ...)</span></div></div>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:.5rem;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="animCycle()">▶ Animer</button>
+        <button class="btn btn-secondary" onclick="resetCycle()">↺ Reset</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">📋 Codes de réponse HTTP importants</div>
+    <div class="card-body">
+      <table class="route-table">
+        <thead><tr><th>Code</th><th>Signification</th><th>Exemple dans l'app</th></tr></thead>
+        <tbody>
+          <tr><td><span style="color:var(--green);font-weight:700">200</span></td><td>Succès</td><td>Films récupérés avec succès</td></tr>
+          <tr><td><span style="color:var(--green);font-weight:700">302</span></td><td>Redirection</td><td>Après création → redirect vers /films</td></tr>
+          <tr><td><span style="color:var(--orange);font-weight:700">401</span></td><td>Non authentifié</td><td>Token JWT manquant ou expiré</td></tr>
+          <tr><td><span style="color:var(--orange);font-weight:700">422</span></td><td>Données invalides</td><td>Titre manquant dans le formulaire</td></tr>
+          <tr><td><span style="color:var(--red);font-weight:700">500</span></td><td>Erreur serveur</td><td>Exception PHP non gérée</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show('s3')">Suivant : MVC &amp; Routes →</button>
+</div>
+
+<!-- ======== S3 : MVC ======== -->
+<div class="section" id="s3">
+  <div class="section-tag">Section 3 / 7</div>
+  <h2>MVC &amp; Routes Laravel</h2>
+  <p class="subtitle">Laravel suit le pattern MVC : Model · View · Controller. Chaque requête traverse ces couches.</p>
+
+  <div class="card">
+    <div class="card-head">🔀 Routes — web.php</div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:.75rem">Le fichier <code style="background:var(--surf3);padding:.1em .35em;border-radius:3px;font-size:12px">routes/web.php</code> associe chaque URL+méthode à une action de contrôleur.</p>
+      <table class="route-table" style="width:100%">
+        <thead><tr><th>Méthode</th><th>URL</th><th>Action</th><th>Nom</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge badge-get">GET</span></td><td class="route-path">/films</td><td class="route-ctrl">FilmController@index</td><td><code style="font-size:11px;color:var(--text3)">films.index</code></td></tr>
+          <tr><td><span class="badge badge-get">GET</span></td><td class="route-path">/films/create</td><td class="route-ctrl">FilmController@create</td><td><code style="font-size:11px;color:var(--text3)">films.create</code></td></tr>
+          <tr><td><span class="badge badge-post">POST</span></td><td class="route-path">/films</td><td class="route-ctrl">FilmController@store</td><td><code style="font-size:11px;color:var(--text3)">films.store</code></td></tr>
+          <tr><td><span class="badge badge-get">GET</span></td><td class="route-path">/films/{id}</td><td class="route-ctrl">FilmController@show</td><td><code style="font-size:11px;color:var(--text3)">films.show</code></td></tr>
+          <tr><td><span class="badge badge-put">PUT</span></td><td class="route-path">/films/{id}</td><td class="route-ctrl">FilmController@update</td><td><code style="font-size:11px;color:var(--text3)">films.update</code></td></tr>
+          <tr><td><span class="badge badge-delete">DELETE</span></td><td class="route-path">/films/{id}</td><td class="route-ctrl">FilmController@destroy</td><td><code style="font-size:11px;color:var(--text3)">films.destroy</code></td></tr>
+          <tr><td><span class="badge badge-get">GET</span></td><td class="route-path">/stocks</td><td class="route-ctrl">StockController@index</td><td><code style="font-size:11px;color:var(--text3)">stocks.index</code></td></tr>
+          <tr><td><span class="badge badge-get">GET</span></td><td class="route-path">/stocks/{filmId}</td><td class="route-ctrl">StockController@show</td><td><code style="font-size:11px;color:var(--text3)">stocks.show</code></td></tr>
+        </tbody>
+      </table>
+      <div class="info-box tip" style="margin-top:.75rem"><span class="icon">💡</span><span>Le nom de la route (<code>films.index</code>) permet d'écrire <code>route('films.index')</code> dans les vues au lieu d'écrire l'URL en dur. Si l'URL change, les vues ne changent pas.</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🏗️ Contrôleur → Service → Modèle</div>
+    <div class="card-body">
+      <div class="code-block"><span class="cmt">// FilmController.php — reçoit la requête HTTP</span>
+<span class="kw">public function</span> <span class="fn">store</span>(<span class="cls">Request</span> <span class="var">$request</span>)
+{
+    <span class="cmt">// 1. Valide les données du formulaire</span>
+    <span class="var">$validator</span> = <span class="cls">Validator</span>::<span class="fn">make</span>(<span class="var">$request</span>-&gt;<span class="fn">all</span>(), [
+        <span class="str">'title'</span>       =&gt; <span class="str">'required|string|max:255'</span>,
+        <span class="str">'description'</span> =&gt; <span class="str">'required|string'</span>,
+        <span class="str">'releaseYear'</span> =&gt; <span class="str">'required|integer|min:1900'</span>,
+    ]);
+
+    <span class="cmt">// 2. Délègue au SERVICE (pas de logique métier dans le contrôleur)</span>
+    <span class="var">$film</span> = <span class="var">$this</span>-&gt;<span class="var">filmService</span>-&gt;<span class="fn">createFilm</span>(<span class="var">$request</span>-&gt;<span class="fn">all</span>());
+
+    <span class="cmt">// 3. Retourne une vue ou une redirection</span>
+    <span class="kw">return</span> <span class="fn">redirect</span>()-&gt;<span class="fn">route</span>(<span class="str">'films.index'</span>)-&gt;<span class="fn">with</span>(<span class="str">'success'</span>, <span class="str">'Film créé'</span>);
+}</div>
+      <div class="code-block" style="margin-top:.5rem"><span class="cmt">// ToadFilmService.php — contient la logique métier</span>
+<span class="kw">public function</span> <span class="fn">createFilm</span>(<span class="cls">array</span> <span class="var">$data</span>): ?<span class="cls">array</span>
+{
+    <span class="cmt">// Essaie l'API Toad</span>
+    <span class="var">$resp</span> = <span class="var">$this</span>-&gt;<span class="fn">http</span>()-&gt;<span class="fn">post</span>(<span class="var">$this</span>-&gt;<span class="var">baseUrl</span> . <span class="str">'/films'</span>, <span class="var">$payload</span>);
+    <span class="kw">if</span> (<span class="var">$resp</span>-&gt;<span class="fn">successful</span>()) {
+        <span class="kw">return</span> <span class="var">$this</span>-&gt;<span class="fn">normalizeRemote</span>(<span class="var">$resp</span>-&gt;<span class="fn">json</span>());
+    }
+    <span class="cmt">// Fallback : SQLite local</span>
+    <span class="var">$local</span> = <span class="cls">LocalFilm</span>::<span class="fn">create</span>([...]);
+    <span class="kw">return</span> <span class="var">$this</span>-&gt;<span class="fn">normalizeLocal</span>(<span class="var">$local</span>);
+}</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">👁️ Vue Blade — resources/views/films/index.blade.php</div>
+    <div class="card-body">
+      <div class="code-block"><span class="cmt">{{-- Blade hérite du layout principal --}}</span>
+@<span class="fn">extends</span>(<span class="str">'layouts.app'</span>)
+
+@<span class="fn">section</span>(<span class="str">'content'</span>)
+&lt;div&gt;
+    <span class="cmt">{{-- Boucle sur le tableau $films passé par le contrôleur --}}</span>
+    @<span class="fn">foreach</span> (<span class="var">$films</span> <span class="kw">as</span> <span class="var">$film</span>)
+        &lt;tr&gt;
+            &lt;td&gt;{{ <span class="var">$film</span>[<span class="str">'title'</span>] }}&lt;/td&gt;
+        &lt;/tr&gt;
+    @<span class="fn">endforeach</span>
+
+    <span class="cmt">{{-- Génère l'URL /films grâce au nom de route --}}</span>
+    &lt;a href="{{ <span class="fn">route</span>(<span class="str">'films.index'</span>) }}"&gt;Retour&lt;/a&gt;
+&lt;/div&gt;
+@<span class="fn">endsection</span></div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show('s4')">Suivant : Authentification →</button>
+</div>
+
+<!-- ======== S4 : AUTH ======== -->
+<div class="section" id="s4">
+  <div class="section-tag">Section 4 / 7</div>
+  <h2>Authentification</h2>
+  <p class="subtitle">L'app vérifie les identifiants via l'API Toad d'abord, puis en fallback sur la base SQLite locale.</p>
+
+  <div class="card">
+    <div class="card-head">🔄 Stratégie "double source"</div>
+    <div class="card-body">
+      <div class="timeline">
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">1. Formulaire soumis</div><div class="tl-desc">L'utilisateur envoie email + mot de passe via POST /login.</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">2. Appel API Toad</div><div class="tl-desc">ToadAuthService appelle l'API Toad pour vérifier les identifiants. Si succès → token JWT retourné.</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">3. Fallback local (si l'API est hors ligne)</div><div class="tl-desc">Laravel cherche l'utilisateur dans la table SQLite et compare le hash du mot de passe avec Hash::check().</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">4. Stockage en session</div><div class="tl-desc">Les données utilisateur + token JWT sont sauvegardées : <code>session('toad_user')</code>.</div></div>
+        <div class="tl-step active-step"><div class="tl-dot"></div><div class="tl-title">5. Connexion Laravel</div><div class="tl-desc">Auth::login($user) connecte l'utilisateur. Le middleware 'auth' le reconnaîtra sur les requêtes suivantes.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🔑 Le token JWT — À quoi ça sert ?</div>
+    <div class="card-body">
+      <div class="info-box note"><span class="icon">ℹ️</span><span>JWT = <strong>JSON Web Token</strong>. C'est une chaîne de caractères encodée qui prouve que l'utilisateur est authentifié. L'API Toad le retourne après connexion.</span></div>
+      <div class="code-block" style="margin-top:.75rem"><span class="cmt">// Après login, le token est stocké en session</span>
+<span class="var">$request</span>-&gt;<span class="fn">session</span>()-&gt;<span class="fn">put</span>(<span class="str">'toad_user'</span>, [
+    <span class="str">'token'</span> =&gt; <span class="str">'eyJhbGciOiJIUzI1NiIsInR5cCI6...'</span>,  <span class="cmt">// Token JWT</span>
+    <span class="str">'email'</span> =&gt; <span class="str">'user@example.com'</span>,
+    <span class="str">'name'</span>  =&gt; <span class="str">'Jean Dupont'</span>,
+]);
+
+<span class="cmt">// À chaque appel API suivant, le token est ajouté automatiquement</span>
+<span class="cls">Http</span>::<span class="fn">withToken</span>(<span class="fn">session</span>(<span class="str">'toad_user.token'</span>))
+    -&gt;<span class="fn">get</span>(<span class="str">'/films'</span>);  <span class="cmt">// → Header: Authorization: Bearer eyJ...</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🛡️ La protection CSRF</div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:.75rem">CSRF = Cross-Site Request Forgery. Une attaque où un site malveillant soumet un formulaire au nom de l'utilisateur. Laravel s'en protège avec un token unique par session.</p>
+      <div class="code-block"><span class="cmt">{{-- Dans chaque formulaire Blade --}}</span>
+&lt;form <span class="var">method</span>=<span class="str">"POST"</span> <span class="var">action</span>=<span class="str">"/films"</span>&gt;
+    @<span class="fn">csrf</span>  <span class="cmt">{{-- génère : &lt;input type="hidden" name="_token" value="abc123..."&gt; --}}</span>
+    ...
+&lt;/form&gt;</div>
+      <div class="info-box warn" style="margin-top:.75rem"><span class="icon">⚠️</span><span>Si le token CSRF est absent ou invalide → Laravel retourne une erreur <strong>419 Page Expired</strong>.</span></div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show('s5')">Suivant : Films CRUD →</button>
+</div>
+
+<!-- ======== S5 : FILMS ======== -->
+<div class="section" id="s5">
+  <div class="section-tag">Section 5 / 7</div>
+  <h2>Gestion des films</h2>
+  <p class="subtitle">Le CRUD films combine deux sources : l'API Toad pour la lecture et le SQLite local comme fallback pour l'écriture.</p>
+
+  <div class="card">
+    <div class="card-head">🔀 La fusion locale / distante</div>
+    <div class="card-body">
+      <div class="code-block"><span class="cmt">// ToadFilmService::getAllFilms()</span>
+<span class="cmt">// Étape 1 : Films distants depuis l'API Toad</span>
+<span class="var">$resp</span> = <span class="var">$this</span>-&gt;<span class="fn">http</span>()-&gt;<span class="fn">get</span>(<span class="var">$this</span>-&gt;<span class="var">baseUrl</span> . <span class="str">'/films'</span>);
+<span class="var">$remote</span> = <span class="fn">array_map</span>([$<span class="var">this</span>, <span class="str">'normalizeRemote'</span>], <span class="var">$resp</span>-&gt;<span class="fn">json</span>());
+
+<span class="cmt">// Indexer les films distants par filmId</span>
+<span class="var">$indexed</span> = [];
+<span class="kw">foreach</span> (<span class="var">$remote</span> <span class="kw">as</span> <span class="var">$f</span>) {
+    <span class="var">$indexed</span>[(<span class="cls">string</span>)<span class="var">$f</span>[<span class="str">'filmId'</span>]] = <span class="var">$f</span>;
+}
+
+<span class="cmt">// Étape 2 : Films locaux SQLite (remplacent les distants si même filmId)</span>
+<span class="kw">foreach</span> (<span class="cls">LocalFilm</span>::<span class="fn">all</span>() <span class="kw">as</span> <span class="var">$local</span>) {
+    <span class="var">$key</span> = <span class="var">$local</span>-&gt;<span class="var">filmId</span> ?? <span class="str">'local_'</span> . <span class="var">$local</span>-&gt;<span class="var">id</span>;
+    <span class="var">$indexed</span>[<span class="var">$key</span>] = <span class="var">$norm</span>;  <span class="cmt">// override !</span>
+}</div>
+      <div class="info-box tip" style="margin-top:.75rem"><span class="icon">💡</span><span>Un film local avec <code>filmId = 100</code> va <strong>écraser</strong> le film distant avec <code>filmId = 100</code> dans la liste. Cela permet de modifier un film Peach sans accès direct à la base.</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🆔 Film local vs Film distant</div>
+    <div class="card-body">
+      <div class="grid-2">
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem">
+          <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:.5rem">✅ Film distant (API Peach)</div>
+          <div class="code-block" style="margin:.5rem 0">{
+  <span class="str">"filmId"</span>: <span class="num">42</span>,
+  <span class="str">"title"</span>: <span class="str">"ACADEMY DINOSAUR"</span>,
+  <span class="str">"source"</span>: <span class="str">"remote"</span>
+}</div>
+          <div style="font-size:12px;color:var(--text2)"><code>filmId</code> = entier numérique<br>Vient de la base Peach</div>
+        </div>
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem">
+          <div style="font-size:12px;font-weight:700;color:var(--gold);margin-bottom:.5rem">🏠 Film local (SQLite)</div>
+          <div class="code-block" style="margin:.5rem 0">{
+  <span class="str">"filmId"</span>: <span class="str">"local_7"</span>,
+  <span class="str">"title"</span>: <span class="str">"Mon nouveau film"</span>,
+  <span class="str">"source"</span>: <span class="str">"local"</span>
+}</div>
+          <div style="font-size:12px;color:var(--text2)"><code>filmId</code> = "local_" + id SQLite<br>Créé localement</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">🗑️ Suppression — logique conditionnelle</div>
+    <div class="card-body">
+      <div class="code-block"><span class="kw">public function</span> <span class="fn">deleteFilm</span>(<span class="var">$id</span>): <span class="cls">bool</span>
+{
+    <span class="kw">if</span> (<span class="fn">str_starts_with</span>(<span class="var">$idStr</span>, <span class="str">'local_'</span>)) {
+        <span class="cmt">// Film purement local → supprimer directement en SQLite</span>
+        <span class="var">$local</span>-&gt;<span class="fn">delete</span>();
+        <span class="kw">return</span> <span class="kw">true</span>;
+    }
+    <span class="cmt">// Film distant → appel DELETE /films/{id} sur l'API Toad</span>
+    <span class="var">$resp</span> = <span class="var">$this</span>-&gt;<span class="fn">http</span>()-&gt;<span class="fn">delete</span>(<span class="var">$this</span>-&gt;<span class="var">baseUrl</span> . <span class="str">'/films/'</span> . <span class="var">$id</span>);
+    <span class="cmt">// Supprimer aussi l'override local si existant</span>
+    <span class="var">$local</span>?-&gt;<span class="fn">delete</span>();
+}</div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show('s6')">Suivant : Stocks →</button>
+</div>
+
+<!-- ======== S6 : STOCKS ======== -->
+<div class="section" id="s6">
+  <div class="section-tag">Section 6 / 7</div>
+  <h2>Gestion des stocks</h2>
+  <p class="subtitle">Chaque film peut avoir plusieurs exemplaires physiques (DVD). Le stock est géré via l'API Toad (inventaire Peach).</p>
+
+  <div class="card">
+    <div class="card-head">📊 Les 3 compteurs</div>
+    <div class="card-body">
+      <div class="grid-3">
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem;text-align:center">
+          <div style="font-size:1.8rem;font-weight:700;color:var(--text)">N</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:.25rem">Total</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:.3rem">Tous les exemplaires du DVD</div>
+        </div>
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem;text-align:center">
+          <div style="font-size:1.8rem;font-weight:700;color:var(--green)">N</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:.25rem">Disponibles</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:.3rem">Non loués, présents en magasin</div>
+        </div>
+        <div style="background:var(--surf2);border:1px solid var(--border);border-radius:var(--r2);padding:1rem;text-align:center">
+          <div style="font-size:1.8rem;font-weight:700;color:var(--blue)">N</div>
+          <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--text2);margin-top:.25rem">Occupés</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:.3rem">Loués ou en panier client</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">➕ Ajouter des DVD — POST /stocks/reception</div>
+    <div class="card-body">
+      <div class="code-block"><span class="cmt">// StockController::reception()</span>
+<span class="var">$request</span>-&gt;<span class="fn">validate</span>([
+    <span class="str">'filmId'</span>  =&gt; <span class="str">'required'</span>,
+    <span class="str">'quantite'</span> =&gt; <span class="str">'required|integer|min:1'</span>,
+    <span class="str">'storeId'</span>  =&gt; <span class="str">'required|integer|min:1'</span>,
+]);
+<span class="cmt">// Le service crée N entrées dans la table inventory (une par DVD physique)</span>
+<span class="var">$this</span>-&gt;<span class="var">inventoryService</span>-&gt;<span class="fn">addStock</span>(
+    <span class="var">$request</span>-&gt;<span class="var">filmId</span>,
+    <span class="var">$request</span>-&gt;<span class="var">quantite</span>,
+    <span class="var">$request</span>-&gt;<span class="var">storeId</span>
+);</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">➖ Retirer des DVD — POST /stocks/retrait</div>
+    <div class="card-body">
+      <p style="font-size:13px;color:var(--text2);margin-bottom:.75rem">On ne peut retirer que des exemplaires <strong style="color:var(--text)">disponibles</strong> (non loués). Un motif est obligatoire pour la traçabilité.</p>
+      <div class="code-block"><span class="cmt">// Les motifs acceptés</span>
+<span class="str">'casse'</span>    <span class="cmt">→ DVD endommagé physiquement</span>
+<span class="str">'perte'</span>    <span class="cmt">→ DVD perdu</span>
+<span class="str">'vol'</span>      <span class="cmt">→ DVD volé</span>
+<span class="str">'obsolete'</span> <span class="cmt">→ retiré de la vente</span>
+<span class="str">'autre'</span>    <span class="cmt">→ autre raison</span></div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show('s7')">Passer au Quiz →</button>
+</div>
+
+<!-- ======== S7 : QUIZ ======== -->
+<div class="section" id="s7">
+  <div class="section-tag">Évaluation</div>
+  <h2>Quiz — 15 questions</h2>
+  <p class="subtitle">Teste ta compréhension de l'application. Les questions sont basées sur le vrai code.</p>
+
+  <div class="quiz-container" id="quiz-container">
+
+    <!-- Q1 -->
+    <div class="quiz-question active" id="q1">
+      <div class="quiz-q-num">Question 1 / 15</div>
+      <div class="quiz-q-text">Quel est le rôle principal de <code>ToadFilmService</code> ?</div>
+      <div class="quiz-q-context">Il y a ce fichier dans <code>app/Services/ToadFilmService.php</code>. Il est injecté dans le contrôleur.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q1')"><div class="quiz-opt-letter">A</div><div>Afficher les vues Blade</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q1')"><div class="quiz-opt-letter">B</div><div>Point d'accès unique à toutes les opérations sur les films (API + SQLite)</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q1')"><div class="quiz-opt-letter">C</div><div>Gérer les sessions des utilisateurs</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q1')"><div class="quiz-opt-letter">D</div><div>Définir les routes HTTP de l'application</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb1"></div>
+      <div class="quiz-nav"><button class="btn btn-secondary" onclick="show('s6')" style="font-size:12px">← Revoir les stocks</button><button class="btn btn-primary" id="next1" onclick="nextQ(1)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q2 -->
+    <div class="quiz-question" id="q2">
+      <div class="quiz-q-num">Question 2 / 15</div>
+      <div class="quiz-q-text">Que signifie un <code>filmId</code> valant <code>"local_7"</code> ?</div>
+      <div class="quiz-q-context">Dans la méthode <code>normalizeLocal()</code>, le code est : <code>$f->filmId ?? 'local_' . $f->id</code></div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q2')"><div class="quiz-opt-letter">A</div><div>Le film a 7 exemplaires en stock</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q2')"><div class="quiz-opt-letter">B</div><div>Le film vient de l'API Peach et a l'ID 7</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q2')"><div class="quiz-opt-letter">C</div><div>Le film a été créé localement dans SQLite, son ID SQLite est 7</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q2')"><div class="quiz-opt-letter">D</div><div>Le film est en cours de modification</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb2"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next2" onclick="nextQ(2)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q3 -->
+    <div class="quiz-question" id="q3">
+      <div class="quiz-q-num">Question 3 / 15</div>
+      <div class="quiz-q-text">Pourquoi utilise-t-on <code>@method('DELETE')</code> dans un formulaire HTML ?</div>
+      <div class="quiz-q-context">Dans <code>films/index.blade.php</code>, le bouton supprimer est dans un formulaire avec <code>@method('DELETE')</code> et <code>@csrf</code>.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q3')"><div class="quiz-opt-letter">A</div><div>Pour activer la protection CSRF sur le formulaire</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q3')"><div class="quiz-opt-letter">B</div><div>Pour accélérer la requête de suppression</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q3')"><div class="quiz-opt-letter">C</div><div>Car les navigateurs ne supportent que GET et POST dans les formulaires HTML — Laravel simule DELETE via un champ caché</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q3')"><div class="quiz-opt-letter">D</div><div>Pour demander une confirmation à l'utilisateur</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb3"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next3" onclick="nextQ(3)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q4 -->
+    <div class="quiz-question" id="q4">
+      <div class="quiz-q-num">Question 4 / 15</div>
+      <div class="quiz-q-text">Que fait <code>normalizeRemote()</code> dans ToadFilmService ?</div>
+      <div class="quiz-q-context">L'API Toad retourne des données en camelCase : <code>filmId</code>, <code>releaseYear</code>, <code>originalLanguageId</code>…</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q4')"><div class="quiz-opt-letter">A</div><div>Supprime les films de l'API distante</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q4')"><div class="quiz-opt-letter">B</div><div>Transforme un film reçu de l'API (format API) en tableau PHP unifié utilisable dans les vues</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q4')"><div class="quiz-opt-letter">C</div><div>Authentifie l'utilisateur auprès de l'API Toad</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q4')"><div class="quiz-opt-letter">D</div><div>Envoie les données du formulaire à l'API</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb4"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next4" onclick="nextQ(4)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q5 -->
+    <div class="quiz-question" id="q5">
+      <div class="quiz-q-num">Question 5 / 15</div>
+      <div class="quiz-q-text">Dans <code>getAllFilms()</code>, que se passe-t-il si un film local a le même <code>filmId</code> qu'un film distant ?</div>
+      <div class="quiz-q-context">Code : <code>$indexed[$key] = $norm;</code> — cette ligne s'exécute pour chaque film local, après avoir chargé les films distants.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q5')"><div class="quiz-opt-letter">A</div><div>Les deux films sont retournés côte à côte</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q5')"><div class="quiz-opt-letter">B</div><div>Le film distant est conservé, le film local est ignoré</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q5')"><div class="quiz-opt-letter">C</div><div>Le film local remplace (override) le film distant dans la liste</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q5')"><div class="quiz-opt-letter">D</div><div>Une erreur est levée pour éviter les conflits</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb5"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next5" onclick="nextQ(5)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q6 -->
+    <div class="quiz-question" id="q6">
+      <div class="quiz-q-num">Question 6 / 15</div>
+      <div class="quiz-q-text">Quel code HTTP Laravel retourne-t-il quand la validation d'un formulaire échoue ?</div>
+      <div class="quiz-q-context">Dans <code>FilmController::store()</code> : <code>return response()->json(['errors' => $validator->errors()], ???);</code></div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q6')"><div class="quiz-opt-letter">A</div><div>200 — Succès</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q6')"><div class="quiz-opt-letter">B</div><div>404 — Ressource non trouvée</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q6')"><div class="quiz-opt-letter">C</div><div>422 — Unprocessable Entity (données invalides)</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q6')"><div class="quiz-opt-letter">D</div><div>500 — Erreur interne du serveur</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb6"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next6" onclick="nextQ(6)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q7 -->
+    <div class="quiz-question" id="q7">
+      <div class="quiz-q-num">Question 7 / 15</div>
+      <div class="quiz-q-text">Où est stocké le token JWT de l'utilisateur connecté ?</div>
+      <div class="quiz-q-context">Dans <code>LoginController::login()</code> : après authentification réussie, une ligne stocke les données utilisateur.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q7')"><div class="quiz-opt-letter">A</div><div>Dans la base de données SQLite</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q7')"><div class="quiz-opt-letter">B</div><div>Dans le localStorage du navigateur</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q7')"><div class="quiz-opt-letter">C</div><div>Dans la session PHP côté serveur — clé <code>session('toad_user.token')</code></div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q7')"><div class="quiz-opt-letter">D</div><div>Dans un cookie non sécurisé</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb7"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next7" onclick="nextQ(7)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q8 -->
+    <div class="quiz-question" id="q8">
+      <div class="quiz-q-num">Question 8 / 15</div>
+      <div class="quiz-q-text">Pourquoi la route <code>GET /films/create</code> doit-elle être déclarée AVANT <code>GET /films/{id}</code> ?</div>
+      <div class="quiz-q-context">Dans <code>routes/web.php</code> : <em>"IMPORTANT : cette route doit être AVANT /films/{id}"</em></div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q8')"><div class="quiz-opt-letter">A</div><div>Pour des raisons de sécurité — la création doit être vérifiée en premier</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q8')"><div class="quiz-opt-letter">B</div><div>Sinon Laravel interpréterait "create" comme la valeur du paramètre {id} et tenterait d'afficher un film avec l'ID "create"</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q8')"><div class="quiz-opt-letter">C</div><div>Pour optimiser les performances du routeur</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q8')"><div class="quiz-opt-letter">D</div><div>C'est une convention purement esthétique sans impact fonctionnel</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb8"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next8" onclick="nextQ(8)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q9 -->
+    <div class="quiz-question" id="q9">
+      <div class="quiz-q-num">Question 9 / 15</div>
+      <div class="quiz-q-text">Si l'API Toad est hors ligne lors de la création d'un film, que se passe-t-il ?</div>
+      <div class="quiz-q-context">Dans <code>ToadFilmService::createFilm()</code>, après le bloc <code>try/catch</code> qui appelle l'API.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q9')"><div class="quiz-opt-letter">A</div><div>L'application affiche une erreur 500 à l'utilisateur</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q9')"><div class="quiz-opt-letter">B</div><div>La création est annulée et l'utilisateur est redirigé</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q9')"><div class="quiz-opt-letter">C</div><div>Fallback : le film est créé dans la base SQLite locale avec un filmId "local_N"</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q9')"><div class="quiz-opt-letter">D</div><div>Laravel attend que l'API soit disponible avant de continuer</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb9"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next9" onclick="nextQ(9)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q10 -->
+    <div class="quiz-question" id="q10">
+      <div class="quiz-q-num">Question 10 / 15</div>
+      <div class="quiz-q-text">Qu'est-ce que la protection CSRF ?</div>
+      <div class="quiz-q-context">Dans chaque formulaire Blade : <code>@csrf</code> génère un champ caché <code>_token</code>.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q10')"><div class="quiz-opt-letter">A</div><div>Un chiffrement des mots de passe avec bcrypt</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q10')"><div class="quiz-opt-letter">B</div><div>Protection contre les requêtes frauduleuses envoyées à ton nom depuis un site tiers malveillant</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q10')"><div class="quiz-opt-letter">C</div><div>Un système de cache pour accélérer les réponses de l'API</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q10')"><div class="quiz-opt-letter">D</div><div>Un protocole de communication avec la base Peach</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb10"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next10" onclick="nextQ(10)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q11 -->
+    <div class="quiz-question" id="q11">
+      <div class="quiz-q-num">Question 11 / 15</div>
+      <div class="quiz-q-text">Quel middleware protège toutes les routes <code>/films</code> et <code>/stocks</code> ?</div>
+      <div class="quiz-q-context">Dans <code>routes/web.php</code> : <code>Route::middleware(['???'])->group(function () { ... });</code></div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q11')"><div class="quiz-opt-letter">A</div><div><code>csrf</code> — protection contre les attaques</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q11')"><div class="quiz-opt-letter">B</div><div><code>api</code> — middleware pour les routes API</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q11')"><div class="quiz-opt-letter">C</div><div><code>auth</code> — redirige vers /login si l'utilisateur n'est pas connecté</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q11')"><div class="quiz-opt-letter">D</div><div><code>throttle</code> — limite le nombre de requêtes</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb11"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next11" onclick="nextQ(11)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q12 -->
+    <div class="quiz-question" id="q12">
+      <div class="quiz-q-num">Question 12 / 15</div>
+      <div class="quiz-q-text">Peut-on supprimer un film qui n'existe qu'en base Peach (API) et qui n'a pas d'override local ?</div>
+      <div class="quiz-q-context">Dans <code>deleteFilm()</code> : si <code>filmId</code> est numérique (pas "local_"), l'API est appelée avec <code>DELETE /films/{id}</code>.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q12')"><div class="quiz-opt-letter">A</div><div>Non, c'est impossible — le service retourne false immédiatement</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q12')"><div class="quiz-opt-letter">B</div><div>Oui, via un appel DELETE à l'API Toad — si l'API répond succès, la suppression est confirmée</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q12')"><div class="quiz-opt-letter">C</div><div>Non, une copie locale est d'abord créée avant de supprimer</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q12')"><div class="quiz-opt-letter">D</div><div>Oui, mais uniquement si l'utilisateur est administrateur</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb12"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next12" onclick="nextQ(12)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q13 -->
+    <div class="quiz-question" id="q13">
+      <div class="quiz-q-num">Question 13 / 15</div>
+      <div class="quiz-q-text">Dans le retrait de stock, pourquoi le champ "motif" est-il obligatoire ?</div>
+      <div class="quiz-q-context">Formulaire modal retrait : <code>&lt;select name="motif" required&gt;</code> avec options : casse, perte, vol, obsolète, autre.</div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q13')"><div class="quiz-opt-letter">A</div><div>Pour calculer automatiquement une indemnisation</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q13')"><div class="quiz-opt-letter">B</div><div>C'est une contrainte technique de l'API Toad</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q13')"><div class="quiz-opt-letter">C</div><div>Pour la traçabilité — savoir pourquoi des DVD ont quitté le stock</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q13')"><div class="quiz-opt-letter">D</div><div>Pour envoyer une alerte à l'assurance</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb13"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next13" onclick="nextQ(13)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q14 -->
+    <div class="quiz-question" id="q14">
+      <div class="quiz-q-num">Question 14 / 15</div>
+      <div class="quiz-q-text">Quel est l'avantage de nommer les routes (<code>name('films.index')</code>) ?</div>
+      <div class="quiz-q-context">Dans les vues : <code>href="{{ route('films.index') }}"</code> au lieu de <code>href="/films"</code></div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q14')"><div class="quiz-opt-letter">A</div><div>Ça rend les routes plus rapides à charger</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q14')"><div class="quiz-opt-letter">B</div><div>Si l'URL change (/films → /catalogue), toutes les vues se mettent à jour automatiquement — une seule modification dans web.php</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q14')"><div class="quiz-opt-letter">C</div><div>Ça active la protection CSRF sur la route</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q14')"><div class="quiz-opt-letter">D</div><div>Ça permet d'accéder aux routes sans être connecté</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb14"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next14" onclick="nextQ(14)" disabled>Suivant →</button></div>
+    </div>
+
+    <!-- Q15 -->
+    <div class="quiz-question" id="q15">
+      <div class="quiz-q-num">Question 15 / 15</div>
+      <div class="quiz-q-text">Si l'API Toad est hors ligne lors du login, que fait <code>LoginController</code> ?</div>
+      <div class="quiz-q-context">Code : <code>try { $resp = $this->toadAuth->verify(...); } catch (\RuntimeException $e) { /* continue */ }</code></div>
+      <div class="quiz-options">
+        <div class="quiz-opt" onclick="answer(this,'wrong','q15')"><div class="quiz-opt-letter">A</div><div>Affiche une erreur "Service indisponible" à l'utilisateur</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q15')"><div class="quiz-opt-letter">B</div><div>Connecte l'utilisateur sans vérifier son identité</div></div>
+        <div class="quiz-opt" onclick="answer(this,'correct','q15')"><div class="quiz-opt-letter">C</div><div>Bascule sur la vérification locale SQLite avec <code>Hash::check()</code> sur le mot de passe hashé</div></div>
+        <div class="quiz-opt" onclick="answer(this,'wrong','q15')"><div class="quiz-opt-letter">D</div><div>Attend 30 secondes puis réessaie automatiquement</div></div>
+      </div>
+      <div class="quiz-feedback" id="fb15"></div>
+      <div class="quiz-nav"><span></span><button class="btn btn-primary" id="next15" onclick="showScore()" disabled>Voir mon score →</button></div>
+    </div>
+
+    <!-- SCORE -->
+    <div class="quiz-score-box" id="quiz-score">
+      <div class="quiz-score-num" id="score-num">0</div>
+      <div class="quiz-score-label">/ 15 bonnes réponses</div>
+      <div class="quiz-score-msg" id="score-msg"></div>
+      <div style="margin-top:1.5rem;display:flex;gap:.75rem;justify-content:center;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="restartQuiz()">↺ Recommencer</button>
+        <button class="btn btn-primary" onclick="show('s8')">Expression de besoin →</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ======== S8 : EXPRESSION DE BESOIN ======== -->
+<div class="section" id="s8">
+  <div class="section-tag">Documentation</div>
+  <h2>Expression de besoin</h2>
+  <p class="subtitle">Remplis ce template pour rédiger une expression de besoin complète sur l'application Mario DVD.</p>
+
+  <div class="info-box note" style="margin-bottom:1.5rem"><span class="icon">ℹ️</span><span>Une <strong>expression de besoin</strong> décrit <em>ce que le système doit faire</em> du point de vue du client/commanditaire — sans décrire comment c'est implémenté. C'est le document de départ de tout projet informatique.</span></div>
+
+  <div class="besoin-section">
+    <h3>① Contexte et objectifs</h3>
+    <div class="besoin-field">
+      <label>Contexte général</label>
+      <textarea placeholder="Ex : Une société de location de DVD souhaite gérer son catalogue et ses stocks via une application web. Le personnel peut consulter, ajouter et modifier les films ainsi que leur inventaire..."></textarea>
+      <div class="besoin-hint">💡 Décris l'entreprise/organisation, son activité et pourquoi ce projet existe.</div>
+    </div>
+    <div class="besoin-field">
+      <label>Objectifs du projet</label>
+      <textarea placeholder="1. Permettre aux employés de consulter le catalogue de films&#10;2. Gérer l'inventaire des DVD physiques par magasin&#10;3. Synchroniser les données avec la base centrale Peach..."></textarea>
+      <div class="besoin-hint">💡 Liste les objectifs concrets mesurables. Ex : "réduire le temps de recherche d'un film de 5 min à 30 sec".</div>
+    </div>
+  </div>
+
+  <div class="besoin-section">
+    <h3>② Acteurs du système</h3>
+    <div class="besoin-field">
+      <label>Acteurs principaux</label>
+      <textarea placeholder="• Employé (staff) : consulte les films, gère le stock de son magasin&#10;• Administrateur : peut créer/supprimer des films&#10;• Système Toad API : source de données externe (Java Spring Boot)&#10;• Base de données Peach : base MySQL distante partagée entre magasins"></textarea>
+      <div class="besoin-hint">💡 Un acteur est une personne ou un système externe qui interagit avec l'application.</div>
+    </div>
+  </div>
+
+  <div class="besoin-section">
+    <h3>③ Fonctionnalités requises</h3>
+    <div class="besoin-field">
+      <label>Fonctionnalités — Gestion des films</label>
+      <textarea placeholder="F1 : Afficher la liste des films avec filtres (titre, année, classification, catégorie)&#10;F2 : Consulter la fiche détaillée d'un film (description, durée, classification, stock)&#10;F3 : Ajouter un nouveau film au catalogue&#10;F4 : Modifier les informations d'un film existant&#10;F5 : Supprimer un film du catalogue"></textarea>
+    </div>
+    <div class="besoin-field">
+      <label>Fonctionnalités — Gestion des stocks</label>
+      <textarea placeholder="F6 : Consulter le stock d'un film (total, disponibles, loués)&#10;F7 : Voir la liste des exemplaires physiques avec leur statut&#10;F8 : Réceptionner des DVD (ajout d'exemplaires au stock)&#10;F9 : Retirer des DVD du stock avec motif obligatoire (casse, vol, perte...)"></textarea>
+    </div>
+    <div class="besoin-field">
+      <label>Fonctionnalités — Authentification</label>
+      <textarea placeholder="F10 : Se connecter avec email + mot de passe&#10;F11 : Connexion via l'API Toad en priorité, fallback sur base locale&#10;F12 : Accès aux fonctionnalités protégé pour les utilisateurs connectés uniquement"></textarea>
+    </div>
+  </div>
+
+  <div class="besoin-section">
+    <h3>④ Contraintes techniques</h3>
+    <div class="besoin-field">
+      <label>Contraintes identifiées</label>
+      <textarea placeholder="CT1 : L'API Toad (Java Spring Boot) est la source principale de données — l'app doit fonctionner même si elle est hors ligne (mode dégradé SQLite)&#10;CT2 : Les données de l'API sont en lecture/écriture (GET, POST, DELETE sur /films)&#10;CT3 : L'authentification utilise un token JWT fourni par l'API Toad&#10;CT4 : L'application doit être accessible uniquement aux utilisateurs authentifiés&#10;CT5 : Les formulaires doivent être protégés contre les attaques CSRF"></textarea>
+    </div>
+  </div>
+
+  <div class="besoin-section">
+    <h3>⑤ Cas d'utilisation principaux</h3>
+    <div class="besoin-field">
+      <label>Cas d'utilisation — Créer un film</label>
+      <textarea placeholder="Acteur : Employé connecté&#10;Précondition : L'utilisateur est authentifié&#10;Scénario nominal :&#10;  1. L'employé clique sur 'Ajouter un film'&#10;  2. Il remplit le formulaire (titre, description, année, durée, classification)&#10;  3. Il valide le formulaire&#10;  4. Le système tente de créer le film via l'API Toad (POST /films)&#10;  5. Si succès : le film apparaît dans le catalogue&#10;Scénario alternatif (API indisponible) :&#10;  4b. Le film est créé localement avec l'identifiant 'local_N'"></textarea>
+    </div>
+    <div class="besoin-field">
+      <label>Cas d'utilisation — Gérer le stock</label>
+      <textarea placeholder="Acteur : Employé connecté&#10;Précondition : L'utilisateur est authentifié, le film existe&#10;Scénario nominal (réception) :&#10;  1. L'employé accède à la fiche stock du film&#10;  2. Il clique 'Ajouter des DVD'&#10;  3. Il saisit la quantité et le magasin&#10;  4. Le système crée les entrées d'inventaire via l'API Toad&#10;  5. Les compteurs sont mis à jour (total, disponibles)"></textarea>
+    </div>
+  </div>
+
+  <div class="besoin-section">
+    <h3>⑥ Exigences non fonctionnelles</h3>
+    <div class="besoin-field">
+      <label>Performance, sécurité, disponibilité...</label>
+      <textarea placeholder="ENF1 — Disponibilité : L'application doit fonctionner même si l'API Toad est indisponible (mode dégradé)&#10;ENF2 — Sécurité : Toutes les routes sensibles sont protégées par authentification&#10;ENF3 — Sécurité : Protection CSRF sur tous les formulaires de mutation&#10;ENF4 — Ergonomie : Interface accessible sur navigateur web, responsive mobile&#10;ENF5 — Traçabilité : Chaque retrait de stock doit comporter un motif"></textarea>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem">
+    <button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer / Exporter PDF</button>
+    <button class="btn btn-secondary" onclick="copyBesoin()">📋 Copier le texte</button>
+  </div>
+</div>
+
+</main>
+
+<!-- BOUTON PRINT -->
+<div class="print-btn">
+  <button class="btn btn-secondary" onclick="window.print()" style="font-size:12px;opacity:.7">🖨️ Imprimer</button>
+</div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────
+const visited = new Set(['s0']);
+let score = 0;
+let currentQ = 1;
+const feedbacks = {
+  q1:  { ok: "✅ Exact ! ToadFilmService est la couche service qui centralise tous les accès aux films (API + SQLite).", ko: "❌ Non. ToadFilmService est la couche métier entre le contrôleur et les données (API Toad + SQLite local)." },
+  q2:  { ok: "✅ Exact ! 'local_7' signifie que le film existe uniquement dans SQLite avec l'ID auto-increment 7.", ko: "❌ Non. Le préfixe 'local_' indique une création locale. Le chiffre est l'ID SQLite interne." },
+  q3:  { ok: "✅ Exact ! HTML ne supporte que GET et POST dans les balises <form>. Laravel lit le champ caché _method pour simuler PUT/DELETE.", ko: "❌ Non. C'est une limitation des navigateurs : les formulaires HTML ne peuvent envoyer que GET et POST." },
+  q4:  { ok: "✅ Exact ! normalizeRemote() convertit le format JSON de l'API (camelCase) en tableau PHP unifié utilisable partout.", ko: "❌ Non. normalizeRemote() traduit le format de l'API distante vers un format interne cohérent." },
+  q5:  { ok: "✅ Exact ! C'est le mécanisme d'override : les films locaux prennent la priorité sur les distants si les filmId correspondent.", ko: "❌ Non. La ligne $indexed[$key] = $norm écrase l'entrée distante existante. Le local gagne." },
+  q6:  { ok: "✅ Exact ! HTTP 422 = 'Unprocessable Entity' — les données sont bien formées mais échouent à la validation métier.", ko: "❌ Non. Pour une validation échouée, Laravel retourne 422 (Unprocessable Entity)." },
+  q7:  { ok: "✅ Exact ! Le token est stocké côté serveur dans la session PHP, sous la clé 'toad_user'. Jamais dans le navigateur.", ko: "❌ Non. Le token JWT est dans session('toad_user.token') — côté serveur, pas dans le navigateur." },
+  q8:  { ok: "✅ Exact ! Laravel évalue les routes dans l'ordre. Sans cette précaution, 'create' serait capturé comme {id}.", ko: "❌ Non. C'est un problème d'ordre de matching : 'create' serait confondu avec un ID de film." },
+  q9:  { ok: "✅ Exact ! Le catch avale l'exception réseau et le code continue vers la création SQLite locale.", ko: "❌ Non. L'app ne crashe pas : elle bascule en fallback SQLite et crée le film localement (filmId = 'local_N')." },
+  q10: { ok: "✅ Exact ! CSRF = Cross-Site Request Forgery. Le token @csrf vérifie que le formulaire vient bien de ton application.", ko: "❌ Non. CSRF protège contre les attaques où un site malveillant soumet un formulaire à ta place." },
+  q11: { ok: "✅ Exact ! Le middleware 'auth' vérifie que l'utilisateur est connecté. Sinon → redirection vers /login.", ko: "❌ Non. C'est le middleware 'auth' qui protège les routes films et stocks." },
+  q12: { ok: "✅ Exact ! Depuis la mise à jour du service, un appel DELETE est fait à l'API Toad pour les films distants.", ko: "❌ Non. Le service appelle maintenant DELETE /films/{id} sur l'API Toad pour les films à ID numérique." },
+  q13: { ok: "✅ Exact ! La traçabilité est essentielle en gestion d'inventaire pour justifier les sorties de stock.", ko: "❌ Non. Le motif sert à la traçabilité : savoir pourquoi des DVD ont été retirés (vol, casse, perte…)." },
+  q14: { ok: "✅ Exact ! Le nommage des routes découple les URLs des vues. Si /films devient /catalogue, une seule ligne change.", ko: "❌ Non. L'avantage principal est la maintenabilité : changer l'URL n'oblige pas à modifier toutes les vues." },
+  q15: { ok: "✅ Exact ! Le catch silencieux laisse $resp à null, puis le code vérifie l'utilisateur dans SQLite via Hash::check().", ko: "❌ Non. Le LoginController passe au fallback SQLite et vérifie le mot de passe localement avec Hash::check()." },
+};
+
+// ── NAVIGATION ─────────────────────────────────────────────────────────────
+function show(id) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  document.getElementById('nav-' + id)?.classList.add('active');
+  visited.add(id);
+  updateProgress();
+  window.scrollTo(0, 0);
+}
+
+function updateProgress() {
+  const total = 8;
+  const done = Math.min(visited.size - 1, total);
+  document.getElementById('prog-label').textContent = `Progression : ${done} / ${total}`;
+  document.getElementById('prog-bar').style.width = (done / total * 100) + '%';
+}
+
+// ── CYCLE ANIMATION ────────────────────────────────────────────────────────
+let cycleTimer = null;
+let cycleStep = 0;
+function animCycle() {
+  resetCycle();
+  cycleStep = 0;
+  cycleTimer = setInterval(() => {
+    if (cycleStep < 6) {
+      document.getElementById('cy' + cycleStep).classList.add('lit');
+      cycleStep++;
+    } else {
+      clearInterval(cycleTimer);
+    }
+  }, 700);
+}
+function resetCycle() {
+  clearInterval(cycleTimer);
+  for (let i = 0; i < 6; i++) {
+    const el = document.getElementById('cy' + i);
+    if (el) { el.classList.remove('lit'); if (i === 0) el.classList.add('lit'); }
+  }
+  cycleStep = 1;
+}
+
+// ── QUIZ ───────────────────────────────────────────────────────────────────
+function answer(el, type, qid) {
+  const num = qid.replace('q', '');
+  const opts = el.parentElement.querySelectorAll('.quiz-opt');
+  opts.forEach(o => { o.classList.add('disabled'); });
+  el.classList.add(type);
+  const fb = document.getElementById('fb' + num);
+  fb.className = 'quiz-feedback show ' + (type === 'correct' ? 'ok' : 'ko');
+  fb.textContent = feedbacks[qid][type === 'correct' ? 'ok' : 'ko'];
+  if (type === 'correct') score++;
+  document.getElementById('next' + num).disabled = false;
+}
+
+function nextQ(num) {
+  document.getElementById('q' + num).classList.remove('active');
+  const next = document.getElementById('q' + (num + 1));
+  if (next) next.classList.add('active');
+}
+
+function showScore() {
+  document.getElementById('q15').classList.remove('active');
+  const box = document.getElementById('quiz-score');
+  box.style.display = 'block';
+  document.getElementById('score-num').textContent = score;
+  const msgs = [
+    [0,  5,  "Continue d'apprendre ! Relis les sections avant de réessayer. 💪"],
+    [6,  9,  "Pas mal ! Tu as saisi les concepts principaux. Quelques révisions suffiront. 👍"],
+    [10, 12, "Très bien ! Tu as une bonne compréhension de l'application. 🎉"],
+    [13, 15, "Excellent ! Tu maîtrises parfaitement l'architecture et le code. 🏆"],
+  ];
+  const m = msgs.find(([a, b]) => score >= a && score <= b);
+  document.getElementById('score-msg').textContent = m?.[2] ?? '';
+}
+
+function restartQuiz() {
+  score = 0;
+  document.getElementById('quiz-score').style.display = 'none';
+  document.querySelectorAll('.quiz-question').forEach(q => q.classList.remove('active'));
+  document.querySelectorAll('.quiz-opt').forEach(o => {
+    o.classList.remove('correct', 'wrong', 'disabled');
+  });
+  document.querySelectorAll('.quiz-feedback').forEach(f => f.classList.remove('show'));
+  document.querySelectorAll('[id^="next"]').forEach(b => b.disabled = true);
+  document.getElementById('q1').classList.add('active');
+}
+
+// ── BESOIN COPY ────────────────────────────────────────────────────────────
+function copyBesoin() {
+  const areas = document.querySelectorAll('#s8 textarea');
+  let txt = 'EXPRESSION DE BESOIN — Application Mario DVD\n';
+  txt += '='.repeat(50) + '\n\n';
+  document.querySelectorAll('#s8 .besoin-field').forEach(field => {
+    const label = field.querySelector('label')?.textContent ?? '';
+    const val   = field.querySelector('textarea')?.value ?? '';
+    if (val.trim()) txt += `[${label}]\n${val}\n\n`;
+  });
+  navigator.clipboard?.writeText(txt).then(() => alert('Texte copié dans le presse-papiers !')).catch(() => alert('Copiez manuellement le contenu des champs.'));
+}
+
+// Init
+updateProgress();
+</script>
+</body>
+</html>

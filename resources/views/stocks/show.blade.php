@@ -1,236 +1,234 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-12">
-            <!-- Fil d'Ariane -->
-            <nav aria-label="breadcrumb">
-                <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="{{ route('stocks.index') }}">Stocks</a></li>
-                    <li class="breadcrumb-item active">{{ $film['title'] ?? 'Film' }}</li>
-                </ol>
-            </nav>
 
-            <!-- Résumé du stock -->
-            <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">Stock - {{ $film['title'] ?? 'Film inconnu' }}</h4>
-                    <div>
-                        <button class="btn btn-success" onclick="ouvrirModalReception()">
-                            <i class="bi bi-plus-circle"></i> Ajouter des DVD
-                        </button>
-                        <button class="btn btn-warning" onclick="ouvrirModalRetrait()">
-                            <i class="bi bi-dash-circle"></i> Retirer des DVD
-                        </button>
-                    </div>
-                </div>
-                <div class="card-body">
-                    @if (session('success'))
-                        <div class="alert alert-success alert-dismissible fade show" role="alert">
-                            {{ session('success') }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    @endif
+@php $filmId = $film['filmId'] ?? $film['id'] ?? null; @endphp
 
-                    @if (session('error'))
-                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                            {{ session('error') }}
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    @endif
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ route('stocks.index') }}">Stock DVD</a></li>
+        <li class="breadcrumb-item active">{{ $film['title'] ?? 'Film' }}</li>
+    </ol>
+</nav>
 
-                    <div class="row text-center">
-                        <div class="col-md-4">
-                            <h3 class="text-success">{{ $stock->quantite_disponible }}</h3>
-                            <small>Disponibles</small>
-                        </div>
-                        <div class="col-md-4">
-                            <h3 class="text-primary">{{ $stock->quantite_louee }}</h3>
-                            <small>Louées</small>
-                        </div>
-                        <div class="col-md-4">
-                            <h3>{{ $stock->quantite_totale }}</h3>
-                            <small>Total</small>
-                        </div>
-                    </div>
-                </div>
+@if (session('success'))
+    <div class="alert alert-success alert-dismissible fade show mb-4">
+        {{ session('success') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+@if (session('error'))
+    <div class="alert alert-danger alert-dismissible fade show mb-4">
+        {{ session('error') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+@endif
+
+<div class="section-header">
+    <div>
+        <h1 class="section-title">{{ $film['title'] ?? 'Film inconnu' }}</h1>
+        <p class="section-sub">Gestion du stock DVD</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-success btn-sm"
+                data-bs-toggle="modal" data-bs-target="#modalReception">
+            <i class="bi bi-plus me-1"></i>Ajouter des DVD
+        </button>
+        <button class="btn btn-warning btn-sm"
+                data-bs-toggle="modal" data-bs-target="#modalRetrait"
+                @if(($stock->quantite_disponible ?? 0) === 0) disabled @endif>
+            <i class="bi bi-dash me-1"></i>Retirer des DVD
+        </button>
+    </div>
+</div>
+
+{{-- Statistiques --}}
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-block">
+            <div class="stat-value">{{ $stock->quantite_totale ?? 0 }}</div>
+            <div class="stat-label">Total d'exemplaires</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-block">
+            <div class="stat-value"
+                 style="color: {{ ($stock->quantite_disponible ?? 0) > 0 ? 'var(--c-success)' : 'var(--c-danger)' }};">
+                {{ $stock->quantite_disponible ?? 0 }}
             </div>
-
-            <!-- Historique des mouvements -->
-            <div class="card">
-                <div class="card-header">
-                    <h5>Historique des mouvements</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-striped">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Type</th>
-                                    <th>Quantité</th>
-                                    <th>Motif</th>
-                                    <th>Notes</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse($historique as $mouvement)
-                                    <tr>
-                                        <td>{{ $mouvement->created_at->format('d/m/Y H:i') }}</td>
-                                        <td>
-                                            @switch($mouvement->type)
-                                                @case('entree')
-                                                    <span class="badge bg-success">Réception</span>
-                                                    @break
-                                                @case('sortie')
-                                                    <span class="badge bg-danger">Sortie</span>
-                                                    @break
-                                                @case('location')
-                                                    <span class="badge bg-primary">Location</span>
-                                                    @break
-                                                @case('retour')
-                                                    <span class="badge bg-info">Retour</span>
-                                                    @break
-                                                @default
-                                                    <span class="badge bg-secondary">{{ $mouvement->type }}</span>
-                                            @endswitch
-                                        </td>
-                                        <td>
-                                            @if($mouvement->quantite > 0)
-                                                <span class="text-success">+{{ $mouvement->quantite }}</span>
-                                            @else
-                                                <span class="text-danger">{{ $mouvement->quantite }}</span>
-                                            @endif
-                                        </td>
-                                        <td>{{ $mouvement->motif ?? '-' }}</td>
-                                        <td>{{ $mouvement->notes ?? '-' }}</td>
-                                    </tr>
-                                @empty
-                                    <tr>
-                                        <td colspan="5" class="text-center">Aucun mouvement enregistré</td>
-                                    </tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="mt-3">
-                <a href="{{ route('stocks.index') }}" class="btn btn-secondary">Retour à la liste</a>
-            </div>
+            <div class="stat-label">Disponibles</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-block">
+            <div class="stat-value" style="color: var(--c-info);">{{ $stock->quantite_louee ?? 0 }}</div>
+            <div class="stat-label">Occupes (loues / panier)</div>
         </div>
     </div>
 </div>
 
-<!-- Modal Réception (Ajouter des DVD) -->
+{{-- Tableau des exemplaires --}}
+<div class="card">
+    <div class="card-header" style="display: flex; align-items: center; gap: 0.5rem;">
+        <i class="bi bi-list-ul" style="color: var(--c-accent);"></i>
+        <span style="font-weight: 600; font-size: 14px;">Exemplaires</span>
+        <span style="color: var(--c-text-2); font-size: 13px;">({{ count($inventaires) }})</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table mb-0">
+            <thead>
+                <tr>
+                    <th>ID Exemplaire</th>
+                    <th>Magasin</th>
+                    <th>Statut</th>
+                    <th>Derniere mise a jour</th>
+                </tr>
+            </thead>
+            <tbody>
+                @forelse($inventaires as $inv)
+                    @php
+                        $invId    = $inv['inventoryId'] ?? $inv['inventory_id'] ?? null;
+                        $estDispo = $invId !== null && isset($disponiblesIds[(string) $invId]);
+                    @endphp
+                    <tr>
+                        <td style="font-family: monospace; font-size: 12px; color: var(--c-text-2);">
+                            #{{ $invId ?? '—' }}
+                        </td>
+                        <td>Magasin {{ $inv['storeId'] ?? $inv['store_id'] ?? '—' }}</td>
+                        <td>
+                            @if($estDispo)
+                                <span style="font-size: 11px; font-weight: 700; color: var(--c-success);
+                                             letter-spacing: 0.06em; text-transform: uppercase;">
+                                    Disponible
+                                </span>
+                            @else
+                                <span style="font-size: 11px; font-weight: 700; color: var(--c-info);
+                                             letter-spacing: 0.06em; text-transform: uppercase;">
+                                    Occupe
+                                </span>
+                            @endif
+                        </td>
+                        <td style="color: var(--c-text-2); font-size: 13px;">
+                            {{ $inv['lastUpdate'] ?? $inv['last_update'] ?? '—' }}
+                        </td>
+                    </tr>
+                @empty
+                    <tr>
+                        <td colspan="4" style="text-align: center; color: var(--c-text-3);
+                                               padding: 2.5rem !important; font-size: 13px;">
+                            Aucun exemplaire enregistre
+                        </td>
+                    </tr>
+                @endforelse
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="mt-3">
+    <a href="{{ route('stocks.index') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>Retour a la liste
+    </a>
+</div>
+
+{{-- Modal : Ajouter des DVD --}}
 <div class="modal fade" id="modalReception" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ route('stocks.reception') }}" method="POST">
                 @csrf
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title">Ajouter des DVD au stock</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="filmId" value="{{ $film['filmId'] ?? $film['id'] }}">
+                <input type="hidden" name="filmId" value="{{ $filmId }}">
 
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size: 15px; font-weight: 600;">
+                        <i class="bi bi-plus-circle me-2" style="color: var(--c-success);"></i>
+                        Ajouter des DVD au stock
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    @php
+                        $staffStore = session('toad_user.staff.storeId')
+                                   ?? session('toad_user.staff.store_id')
+                                   ?? 1;
+                    @endphp
                     <div class="mb-3">
                         <label class="form-label">Film</label>
                         <input type="text" class="form-control" value="{{ $film['title'] ?? '' }}" readonly>
                     </div>
-
                     <div class="mb-3">
-                        <label class="form-label">Quantité à ajouter *</label>
+                        <label class="form-label">Quantite *</label>
                         <input type="number" name="quantite" class="form-control" min="1" value="1" required>
-                        <small class="text-muted">Nombre de DVD à réceptionner</small>
                     </div>
-
                     <div class="mb-3">
-                        <label class="form-label">Prix d'achat unitaire (optionnel)</label>
-                        <input type="number" name="prix_achat" class="form-control" step="0.01" min="0" placeholder="0.00">
-                        <small class="text-muted">Prix d'achat d'un DVD</small>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Notes (optionnel)</label>
-                        <textarea name="notes" class="form-control" rows="3" placeholder="Informations sur la réception..."></textarea>
+                        <label class="form-label">Magasin</label>
+                        <input type="number" name="storeId" class="form-control"
+                               value="{{ $staffStore }}" min="1">
+                        <div class="form-text">Magasin du staff connecte (modifiable)</div>
                     </div>
                 </div>
+
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-success">
-                        <i class="bi bi-plus-circle"></i> Ajouter au stock
-                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-success">Valider</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<!-- Modal Retrait (Retirer des DVD) -->
+{{-- Modal : Retirer des DVD --}}
 <div class="modal fade" id="modalRetrait" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <form action="{{ route('stocks.retrait') }}" method="POST">
                 @csrf
-                <div class="modal-header bg-warning">
-                    <h5 class="modal-title">Retirer des DVD du stock</h5>
+                <input type="hidden" name="filmId" value="{{ $filmId }}">
+
+                <div class="modal-header">
+                    <h5 class="modal-title" style="font-size: 15px; font-weight: 600;">
+                        <i class="bi bi-dash-circle me-2" style="color: var(--c-warning);"></i>
+                        Retirer des DVD du stock
+                    </h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" name="filmId" value="{{ $film['filmId'] ?? $film['id'] }}">
 
+                <div class="modal-body">
                     <div class="mb-3">
                         <label class="form-label">Film</label>
                         <input type="text" class="form-control" value="{{ $film['title'] ?? '' }}" readonly>
                     </div>
-
                     <div class="mb-3">
-                        <label class="form-label">Quantité à retirer *</label>
-                        <input type="number" name="quantite" class="form-control" min="1" max="{{ $stock->quantite_disponible }}" value="1" required>
-                        <small class="text-muted">Disponible: <strong>{{ $stock->quantite_disponible }}</strong> DVD</small>
+                        <label class="form-label">Quantite *</label>
+                        <input type="number" name="quantite" class="form-control"
+                               min="1" max="{{ $stock->quantite_disponible ?? 1 }}"
+                               value="1" required>
+                        <div class="form-text">
+                            Disponibles : <strong style="color: var(--c-text);">{{ $stock->quantite_disponible ?? 0 }}</strong>
+                        </div>
                     </div>
-
                     <div class="mb-3">
                         <label class="form-label">Motif *</label>
-                        <select name="motif" class="form-control" required>
-                            <option value="">-- Sélectionner un motif --</option>
-                            <option value="casse">Casse / DVD endommagé</option>
+                        <select name="motif" class="form-select" required>
+                            <option value="">-- Selectionner --</option>
+                            <option value="casse">Casse / DVD endommage</option>
                             <option value="perte">Perte</option>
                             <option value="vol">Vol</option>
-                            <option value="obsolete">Obsolète / Destruction</option>
+                            <option value="obsolete">Obsolete / Destruction</option>
                             <option value="autre">Autre</option>
                         </select>
                     </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Description</label>
-                        <textarea name="description" class="form-control" rows="3" placeholder="Détails du retrait..."></textarea>
-                    </div>
                 </div>
+
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
-                    <button type="submit" class="btn btn-warning">
-                        <i class="bi bi-dash-circle"></i> Retirer du stock
-                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Annuler</button>
+                    <button type="submit" class="btn btn-warning">Confirmer</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<script>
-function ouvrirModalReception() {
-    const modal = new bootstrap.Modal(document.getElementById('modalReception'));
-    modal.show();
-}
-
-function ouvrirModalRetrait() {
-    const modal = new bootstrap.Modal(document.getElementById('modalRetrait'));
-    modal.show();
-}
-</script>
 @endsection

@@ -1,61 +1,63 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    @if (session('status'))
-        <div class="alert alert-success" role="alert">
-            {{ session('status') }}
-        </div>
-    @endif
 
-    <div class="row">
-        <div class="col-md-12 mb-4">
-            <h2>Tableau de bord</h2>
-            <p class="text-muted">Bienvenue, {{ Auth::user()->name ?? 'Utilisateur' }} !</p>
-        </div>
+@if (session('status'))
+    <div class="alert alert-success mb-4">{{ session('status') }}</div>
+@endif
+
+<div class="section-header">
+    <div>
+        <h1 class="section-title">Tableau de bord</h1>
+        <p class="section-sub">Bienvenue, {{ Auth::user()->name ?? 'Utilisateur' }}</p>
     </div>
+</div>
 
-    <div class="row">
-        <div class="col-md-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Gestion des films</h5>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="{{ route('films.index') }}" class="btn btn-primary">
-                            <i class="bi bi-film"></i> Voir tous les films
-                        </a>
-                        <a href="{{ route('films.create') }}" class="btn btn-success">
-                            <i class="bi bi-plus-circle"></i> Ajouter un nouveau film
-                        </a>
+<div class="row g-3">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body" style="padding: 1.5rem !important;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div style="width: 38px; height: 38px; border-radius: var(--radius); background: var(--c-accent-dim); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="bi bi-film" style="color: var(--c-accent); font-size: 17px;"></i>
                     </div>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--c-text);">Catalogue de films</div>
+                        <div style="font-size: 12px; color: var(--c-text-2);">Gérez votre catalogue DVD</div>
+                    </div>
+                </div>
+                <div class="d-grid gap-2">
+                    <a href="{{ route('films.index') }}" class="btn btn-primary">
+                        <i class="bi bi-film me-2"></i>Voir tous les films
+                    </a>
+                    <a href="{{ route('films.create') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-plus me-2"></i>Ajouter un film
+                    </a>
                 </div>
             </div>
         </div>
+    </div>
 
-        <div class="col-md-6 mb-4">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="card-title mb-0">Liens rapides</h5>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body" style="padding: 1.5rem !important;">
+                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1.25rem;">
+                    <div style="width: 38px; height: 38px; border-radius: var(--radius); background: rgba(58,128,192,0.10); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <i class="bi bi-box-seam" style="color: var(--c-info); font-size: 17px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 14px; font-weight: 600; color: var(--c-text);">Stock DVD</div>
+                        <div style="font-size: 12px; color: var(--c-text-2);">Inventaire et disponibilité</div>
+                    </div>
                 </div>
-                <ul class="list-group list-group-flush">
-                    <li class="list-group-item">
-                        <a href="{{ route('welcome') }}" class="text-decoration-none">
-                            <i class="bi bi-house"></i> Page d'accueil
-                        </a>
-                    </li>
-                    <li class="list-group-item">
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button type="submit" class="btn btn-link text-danger p-0">
-                                <i class="bi bi-box-arrow-right"></i> Se déconnecter
-                            </button>
-                        </form>
-                    </li>
-                </ul>
+                <div class="d-grid">
+                    <a href="{{ route('stocks.index') }}" class="btn btn-outline-secondary">
+                        <i class="bi bi-box-seam me-2"></i>Gérer le stock DVD
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
 @endsection
